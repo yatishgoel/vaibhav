@@ -1,26 +1,21 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useRef, useEffect } from "react";
+import { Worker, Viewer } from "@react-pdf-viewer/core";
+import { pageNavigationPlugin } from "@react-pdf-viewer/page-navigation";
+import { highlightPlugin } from "@react-pdf-viewer/highlight";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  ZoomIn,
-  ZoomOut,
-  Download,
-  FileText,
-  MapPin,
-  ExternalLink,
-  Eye,
-} from "lucide-react";
+import { Download, FileText, MapPin, Eye, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface PDFCoordinate {
   id: string;
   label: string;
   page: number;
-  x: number;
-  y: number;
+  x: number; // Percentage from left (0-100)
+  y: number; // Percentage from top (0-100)
   description: string;
   category: "rent" | "lease-term" | "tenant" | "landlord" | "clauses" | "dates";
 }
@@ -28,16 +23,17 @@ interface PDFCoordinate {
 interface PDFViewerProps {
   file: File;
   onAnalyze?: () => void;
+  scrollToCoordinates?: PDFCoordinate | null;
 }
 
-// Sample coordinates for demonstration
+// Sample coordinates for demonstration (using percentages)
 const sampleCoordinates: PDFCoordinate[] = [
   {
     id: "1",
     label: "Monthly Rent",
     page: 1,
-    x: 200,
-    y: 300,
+    x: 20, // 20% from left
+    y: 30, // 30% from top
     description: "Base monthly rental amount",
     category: "rent",
   },
@@ -45,8 +41,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     id: "2",
     label: "Lease Start Date",
     page: 1,
-    x: 150,
-    y: 400,
+    x: 15,
+    y: 40,
     description: "Commencement date of lease",
     category: "dates",
   },
@@ -54,8 +50,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     id: "3",
     label: "Tenant Name",
     page: 1,
-    x: 100,
-    y: 150,
+    x: 10,
+    y: 15,
     description: "Primary tenant information",
     category: "tenant",
   },
@@ -63,8 +59,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     id: "4",
     label: "Lease Term",
     page: 1,
-    x: 300,
-    y: 250,
+    x: 30,
+    y: 25,
     description: "Duration of lease agreement",
     category: "lease-term",
   },
@@ -72,25 +68,33 @@ const sampleCoordinates: PDFCoordinate[] = [
     id: "5",
     label: "Security Deposit",
     page: 2,
-    x: 180,
-    y: 200,
+    x: 18,
+    y: 20,
     description: "Required security deposit amount",
     category: "rent",
   },
 ];
 
-export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
-  const [scale, setScale] = useState<number>(1.0);
-  const [error, setError] = useState<string | null>(null);
+export default function PDFViewer({
+  file,
+  onAnalyze,
+  scrollToCoordinates,
+}: PDFViewerProps) {
+  const [pdfUrl, setPdfUrl] = React.useState<string>("");
   const [
     selectedCoordinate,
     setSelectedCoordinate,
-  ] = useState<PDFCoordinate | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [pdfUrl, setPdfUrl] = useState<string>("");
+  ] = React.useState<PDFCoordinate | null>(null);
+  const [documentLoaded, setDocumentLoaded] = React.useState(false);
+
+  // Initialize plugins
+  const pageNavigationPluginInstance = pageNavigationPlugin();
+  const highlightPluginInstance = highlightPlugin();
+  const { jumpToPage } = pageNavigationPluginInstance;
+  const { jumpToHighlightArea } = highlightPluginInstance;
 
   // Create PDF URL when component mounts
-  useEffect(() => {
+  React.useEffect(() => {
     if (file) {
       const url = URL.createObjectURL(file);
       setPdfUrl(url);
@@ -102,8 +106,48 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
     }
   }, [file]);
 
+  // Function to scroll to specific coordinates
+  const scrollToPosition = React.useCallback(
+    (coordinate: PDFCoordinate) => {
+      if (!documentLoaded) return;
+
+      // Jump to the target page (pages are 0-indexed)
+      jumpToPage(coordinate.page - 1);
+
+      // Define the highlight area for coordinates
+      const highlightArea = {
+        pageIndex: coordinate.page - 1,
+        left: coordinate.x, // Percentage from left
+        top: coordinate.y, // Percentage from top
+        width: 0.1, // Small width for point highlighting
+        height: 0.1, // Small height for point highlighting
+      };
+
+      // Scroll to the defined area with a small delay to ensure page is loaded
+      setTimeout(() => {
+        jumpToHighlightArea(highlightArea);
+      }, 300);
+
+      setSelectedCoordinate(coordinate);
+    },
+    [documentLoaded, jumpToPage, jumpToHighlightArea]
+  );
+
+  // Handle document load
+  const handleDocumentLoad = React.useCallback(() => {
+    setDocumentLoaded(true);
+    console.log("PDF document loaded successfully");
+  }, []);
+
+  // Effect for handling coordinate scrolling from props
+  React.useEffect(() => {
+    if (scrollToCoordinates && documentLoaded) {
+      scrollToPosition(scrollToCoordinates);
+    }
+  }, [scrollToCoordinates, documentLoaded, scrollToPosition]);
+
   // Download handler
-  const handleDownload = useCallback(() => {
+  const handleDownload = React.useCallback(() => {
     const a = document.createElement("a");
     a.href = pdfUrl;
     a.download = file.name;
@@ -113,51 +157,9 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
   }, [file.name, pdfUrl]);
 
   // Open in new tab
-  const handleOpenInNewTab = useCallback(() => {
+  const handleOpenInNewTab = React.useCallback(() => {
     window.open(pdfUrl, "_blank");
   }, [pdfUrl]);
-
-  // Scroll to coordinate
-  const scrollToCoordinate = useCallback(
-    (coordinate: PDFCoordinate) => {
-      setSelectedCoordinate(coordinate);
-
-      if (iframeRef.current && coordinate.page) {
-        // Navigate to the specific page using URL fragment
-        const pageUrl = `${pdfUrl}#page=${coordinate.page}`;
-        if (iframeRef.current.src !== pageUrl) {
-          iframeRef.current.src = pageUrl;
-        }
-      }
-    },
-    [pdfUrl]
-  );
-
-  // Zoom handlers
-  const handleZoomIn = () => {
-    if (iframeRef.current) {
-      const newScale = Math.min(scale + 0.2, 2.0);
-      setScale(newScale);
-      iframeRef.current.style.transform = `scale(${newScale})`;
-      iframeRef.current.style.transformOrigin = "top left";
-    }
-  };
-
-  const handleZoomOut = () => {
-    if (iframeRef.current) {
-      const newScale = Math.max(scale - 0.2, 0.5);
-      setScale(newScale);
-      iframeRef.current.style.transform = `scale(${newScale})`;
-      iframeRef.current.style.transformOrigin = "top left";
-    }
-  };
-
-  const handleResetZoom = () => {
-    if (iframeRef.current) {
-      setScale(1.0);
-      iframeRef.current.style.transform = "scale(1)";
-    }
-  };
 
   const getCategoryColor = (category: PDFCoordinate["category"]) => {
     switch (category) {
@@ -191,26 +193,6 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
     );
   }
 
-  if (error) {
-    return (
-      <Card className="w-full">
-        <CardContent className="p-6">
-          <div className="text-center">
-            <FileText className="w-12 h-12 text-red-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Error Loading PDF
-            </h3>
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={handleDownload} variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Download PDF
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
       {/* Coordinate Navigation Panel */}
@@ -235,7 +217,8 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
                   }
                   size="sm"
                   className="w-full justify-start text-left h-auto p-3"
-                  onClick={() => scrollToCoordinate(coord)}
+                  onClick={() => scrollToPosition(coord)}
+                  disabled={!documentLoaded}
                 >
                   <div className="flex flex-col items-start gap-1">
                     <div className="flex items-center gap-2 w-full">
@@ -282,31 +265,14 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
                 <span className="text-xs text-gray-500">
                   ({(file.size / 1024 / 1024).toFixed(2)} MB)
                 </span>
+                {documentLoaded && (
+                  <Badge variant="outline" className="text-xs text-green-600">
+                    Loaded
+                  </Badge>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  onClick={handleZoomOut}
-                  variant="outline"
-                  size="sm"
-                  disabled={scale <= 0.5}
-                >
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-                <span className="text-sm text-gray-600 min-w-[60px] text-center">
-                  {Math.round(scale * 100)}%
-                </span>
-                <Button
-                  onClick={handleZoomIn}
-                  variant="outline"
-                  size="sm"
-                  disabled={scale >= 2.0}
-                >
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-                <Button onClick={handleResetZoom} variant="outline" size="sm">
-                  Reset
-                </Button>
                 <Button
                   onClick={handleOpenInNewTab}
                   variant="outline"
@@ -325,22 +291,17 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
         {/* PDF Viewer */}
         <Card>
           <CardContent className="p-0">
-            <div className="w-full h-[700px] overflow-auto bg-gray-100">
-              <iframe
-                ref={iframeRef}
-                src={pdfUrl}
-                title={`PDF Preview: ${file.name}`}
-                width="100%"
-                height="700px"
-                className="border-0"
-                style={{
-                  transform: `scale(${scale})`,
-                  transformOrigin: "top left",
-                  width: scale !== 1 ? `${100 / scale}%` : "100%",
-                  height: scale !== 1 ? `${700 / scale}px` : "700px",
-                }}
-                onError={() => setError("Failed to load PDF")}
-              />
+            <div className="w-full h-[700px] overflow-hidden">
+              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+                <Viewer
+                  fileUrl={pdfUrl}
+                  plugins={[
+                    pageNavigationPluginInstance,
+                    highlightPluginInstance,
+                  ]}
+                  onDocumentLoad={handleDocumentLoad}
+                />
+              </Worker>
             </div>
           </CardContent>
         </Card>
@@ -370,6 +331,10 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
                     </div>
                     <p className="text-sm text-gray-600">
                       {selectedCoordinate.description}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Position: {selectedCoordinate.x}% left,{" "}
+                      {selectedCoordinate.y}% top
                     </p>
                   </div>
                   <Badge variant="outline">
