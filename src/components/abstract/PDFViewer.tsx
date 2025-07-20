@@ -3,7 +3,10 @@
 import React, { useRef, useEffect } from "react";
 import { Worker, Viewer } from "@react-pdf-viewer/core";
 import { pageNavigationPlugin } from "@react-pdf-viewer/page-navigation";
-import { highlightPlugin } from "@react-pdf-viewer/highlight";
+import {
+  highlightPlugin,
+  RenderHighlightsProps,
+} from "@react-pdf-viewer/highlight";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +19,8 @@ interface PDFCoordinate {
   page: number;
   x: number; // Percentage from left (0-100)
   y: number; // Percentage from top (0-100)
+  width: number; // Percentage width (0-100)
+  height: number; // Percentage height (0-100)
   description: string;
   category: "rent" | "lease-term" | "tenant" | "landlord" | "clauses" | "dates";
 }
@@ -26,7 +31,7 @@ interface PDFViewerProps {
   scrollToCoordinates?: PDFCoordinate | null;
 }
 
-// Sample coordinates for demonstration (using percentages)
+// Sample coordinates for demonstration (using percentages with width and height)
 const sampleCoordinates: PDFCoordinate[] = [
   {
     id: "1",
@@ -34,6 +39,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     page: 1,
     x: 20, // 20% from left
     y: 30, // 30% from top
+    width: 25, // 25% width
+    height: 8, // 8% height
     description: "Base monthly rental amount",
     category: "rent",
   },
@@ -43,6 +50,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     page: 1,
     x: 15,
     y: 40,
+    width: 30,
+    height: 6,
     description: "Commencement date of lease",
     category: "dates",
   },
@@ -52,6 +61,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     page: 1,
     x: 10,
     y: 15,
+    width: 35,
+    height: 10,
     description: "Primary tenant information",
     category: "tenant",
   },
@@ -61,6 +72,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     page: 1,
     x: 30,
     y: 25,
+    width: 20,
+    height: 5,
     description: "Duration of lease agreement",
     category: "lease-term",
   },
@@ -70,6 +83,8 @@ const sampleCoordinates: PDFCoordinate[] = [
     page: 2,
     x: 18,
     y: 20,
+    width: 28,
+    height: 7,
     description: "Required security deposit amount",
     category: "rent",
   },
@@ -89,8 +104,59 @@ export default function PDFViewer({
 
   // Initialize plugins
   const pageNavigationPluginInstance = pageNavigationPlugin();
-  const highlightPluginInstance = highlightPlugin();
   const { jumpToPage } = pageNavigationPluginInstance;
+
+  // Get category-based colors for highlights
+  const getCategoryHighlightColor = (category: PDFCoordinate["category"]) => {
+    switch (category) {
+      case "rent":
+        return { backgroundColor: "#22c55e", opacity: 0.3 }; // Green
+      case "lease-term":
+        return { backgroundColor: "#3b82f6", opacity: 0.3 }; // Blue
+      case "tenant":
+        return { backgroundColor: "#a855f7", opacity: 0.3 }; // Purple
+      case "landlord":
+        return { backgroundColor: "#f97316", opacity: 0.3 }; // Orange
+      case "clauses":
+        return { backgroundColor: "#eab308", opacity: 0.3 }; // Yellow
+      case "dates":
+        return { backgroundColor: "#ef4444", opacity: 0.3 }; // Red
+      default:
+        return { backgroundColor: "#6b7280", opacity: 0.3 }; // Gray
+    }
+  };
+
+  // Configure highlight plugin with custom rendering (only show selected highlight)
+  const highlightPluginInstance = highlightPlugin({
+    renderHighlights: (props: RenderHighlightsProps) => (
+      <div>
+        {selectedCoordinate && selectedCoordinate.page - 1 === props.pageIndex && (
+          <div
+            className="cursor-pointer transition-all duration-200 ring-2 ring-blue-500 ring-offset-1"
+            style={{
+              ...props.getCssProperties(
+                {
+                  pageIndex: selectedCoordinate.page - 1,
+                  left: selectedCoordinate.x,
+                  top: selectedCoordinate.y,
+                  width: selectedCoordinate.width,
+                  height: selectedCoordinate.height,
+                },
+                props.rotation
+              ),
+              ...getCategoryHighlightColor(selectedCoordinate.category),
+              opacity: 0.5,
+              border: "2px solid #3b82f6",
+              borderRadius: "2px",
+            }}
+            onClick={() => scrollToPosition(selectedCoordinate)}
+            title={`${selectedCoordinate.label}: ${selectedCoordinate.description}`}
+          />
+        )}
+      </div>
+    ),
+  });
+
   const { jumpToHighlightArea } = highlightPluginInstance;
 
   // Create PDF URL when component mounts
@@ -111,16 +177,22 @@ export default function PDFViewer({
     (coordinate: PDFCoordinate) => {
       if (!documentLoaded) return;
 
+      // If clicking the same coordinate, clear the selection
+      if (selectedCoordinate?.id === coordinate.id) {
+        setSelectedCoordinate(null);
+        return;
+      }
+
       // Jump to the target page (pages are 0-indexed)
       jumpToPage(coordinate.page - 1);
 
       // Define the highlight area for coordinates
       const highlightArea = {
         pageIndex: coordinate.page - 1,
-        left: coordinate.x, // Percentage from left
-        top: coordinate.y, // Percentage from top
-        width: 0.1, // Small width for point highlighting
-        height: 0.1, // Small height for point highlighting
+        left: coordinate.x,
+        top: coordinate.y,
+        width: coordinate.width,
+        height: coordinate.height,
       };
 
       // Scroll to the defined area with a small delay to ensure page is loaded
@@ -130,7 +202,7 @@ export default function PDFViewer({
 
       setSelectedCoordinate(coordinate);
     },
-    [documentLoaded, jumpToPage, jumpToHighlightArea]
+    [documentLoaded, jumpToPage, jumpToHighlightArea, selectedCoordinate]
   );
 
   // Handle document load
@@ -203,6 +275,9 @@ export default function PDFViewer({
               <MapPin className="w-5 h-5" />
               Key Sections
             </CardTitle>
+            <p className="text-sm text-gray-600">
+              Click to highlight and navigate to specific areas
+            </p>
           </CardHeader>
           <CardContent className="space-y-3">
             {sampleCoordinates.map((coord) => (
@@ -235,6 +310,11 @@ export default function PDFViewer({
                     <span className="text-xs text-gray-600">
                       {coord.description}
                     </span>
+                    <div className="flex gap-1 text-xs text-gray-500">
+                      <span>
+                        {coord.width}% × {coord.height}%
+                      </span>
+                    </div>
                   </div>
                 </Button>
               </motion.div>
@@ -248,6 +328,42 @@ export default function PDFViewer({
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Color Legend */}
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle className="text-sm">Highlight Colors</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {[
+              { category: "rent", label: "Rent & Payments", color: "#22c55e" },
+              {
+                category: "lease-term",
+                label: "Lease Terms",
+                color: "#3b82f6",
+              },
+              { category: "tenant", label: "Tenant Info", color: "#a855f7" },
+              {
+                category: "landlord",
+                label: "Landlord Info",
+                color: "#f97316",
+              },
+              { category: "clauses", label: "Clauses", color: "#eab308" },
+              { category: "dates", label: "Important Dates", color: "#ef4444" },
+            ].map((item) => (
+              <div
+                key={item.category}
+                className="flex items-center gap-2 text-xs"
+              >
+                <div
+                  className="w-3 h-3 rounded border"
+                  style={{ backgroundColor: item.color, opacity: 0.3 }}
+                />
+                <span className="text-gray-600">{item.label}</span>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </div>
@@ -267,7 +383,7 @@ export default function PDFViewer({
                 </span>
                 {documentLoaded && (
                   <Badge variant="outline" className="text-xs text-green-600">
-                    Loaded
+                    Loaded & Highlighted
                   </Badge>
                 )}
               </div>
@@ -332,10 +448,18 @@ export default function PDFViewer({
                     <p className="text-sm text-gray-600">
                       {selectedCoordinate.description}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Position: {selectedCoordinate.x}% left,{" "}
-                      {selectedCoordinate.y}% top
-                    </p>
+                    <div className="grid grid-cols-2 gap-4 mt-2 text-xs text-gray-500">
+                      <div>
+                        <span className="font-medium">Position:</span>{" "}
+                        {selectedCoordinate.x}% left, {selectedCoordinate.y}%
+                        top
+                      </div>
+                      <div>
+                        <span className="font-medium">Size:</span>{" "}
+                        {selectedCoordinate.width}% ×{" "}
+                        {selectedCoordinate.height}%
+                      </div>
+                    </div>
                   </div>
                   <Badge variant="outline">
                     Page {selectedCoordinate.page}
