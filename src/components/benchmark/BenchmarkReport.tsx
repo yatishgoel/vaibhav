@@ -64,12 +64,24 @@ export default function BenchmarkReport({ report }: BenchmarkReportProps) {
           <span className="font-semibold">{report.fileName}</span>
         </p>
 
-        <div className="bg-white rounded-lg p-6 border text-left">
-          <div className="text-sm text-purple-800 bg-purple-50 p-4 rounded-lg">
-            <strong>Note:</strong> A preview of the benchmark report is not
-            available. Please use the download button to view the full report.
+        {report.downloadUrl && report.fileName.toLowerCase().endsWith('.pdf') ? (
+          <div className="w-full flex justify-center mt-4">
+            <iframe
+              src={report.downloadUrl}
+              title="PDF Preview"
+              width="100%"
+              height="500px"
+              className="border rounded shadow"
+            />
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-lg p-6 border text-left">
+            <div className="text-sm text-purple-800 bg-purple-50 p-4 rounded-lg">
+              <strong>Note:</strong> A preview of the benchmark report is not
+              available. Please use the download button to view the full report.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -49,11 +49,21 @@ export default function LeaseViewer({ file }: LeaseViewerProps) {
         <p className="text-gray-600 mb-4">
           Original lease document: {file.name}
         </p>
-        <div className="text-sm text-gray-500">
-          Document viewer will display the lease content here
-        </div>
-
-        {/* TODO: Add actual document viewer */}
+        {file.type === "application/pdf" ? (
+          <div className="w-full flex justify-center mt-4">
+            <iframe
+              src={URL.createObjectURL(file)}
+              title="PDF Preview"
+              width="100%"
+              height="500px"
+              className="border rounded shadow"
+            />
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">
+            Document preview is only available for PDF files.
+          </div>
+        )}
         <div className="mt-6 p-4 bg-white rounded border text-left">
           <div className="text-sm font-medium text-gray-700 mb-2">
             Document Information:

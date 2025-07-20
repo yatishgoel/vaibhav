@@ -38,6 +38,8 @@ interface AnalysisData {
 }
 
 export default function ProjectDetails() {
+  const [uploadedPdf, setUploadedPdf] = useState<File | null>(null);
+
   const [project, setProject] = useState<ProjectData | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,6 +99,35 @@ export default function ProjectDetails() {
 
   return (
     <Layout currentPageName="ProjectDetails">
+      {/* PDF Upload and Preview Section */}
+      <div className="mb-8 p-6 bg-white rounded shadow border flex flex-col items-start gap-4">
+        <label className="font-medium">Upload Project PDF:</label>
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={e => {
+            const file = e.target.files?.[0];
+            if (file && file.type === "application/pdf") {
+              setUploadedPdf(file);
+            } else {
+              setUploadedPdf(null);
+              if (file) alert("Please select a PDF file.");
+            }
+          }}
+        />
+        {uploadedPdf && (
+          <div className="w-full flex flex-col items-center mt-4">
+            <div className="mb-2 font-medium">PDF Preview: {uploadedPdf.name}</div>
+            <iframe
+              src={URL.createObjectURL(uploadedPdf)}
+              title="PDF Preview"
+              width="100%"
+              height="500px"
+              className="border rounded shadow"
+            />
+          </div>
+        )}
+      </div>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="max-w-7xl mx-auto p-6 sm:p-8">
           <div className="mb-8">
