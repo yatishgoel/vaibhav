@@ -1,0 +1,38 @@
+{
+  "name": "LeaseAnalysis",
+  "type": "object",
+  "properties": {
+    "lease_name": {
+      "type": "string",
+      "description": "Name of the uploaded lease file"
+    },
+    "abstract_data": {
+      "type": "object",
+      "description": "Extracted abstract data from the lease"
+    },
+    "analysis_type": {
+      "type": "string",
+      "enum": ["abstract", "benchmark"],
+      "description": "Type of analysis performed"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL of the uploaded lease file"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["processing", "completed", "failed"],
+      "default": "processing",
+      "description": "Analysis status"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "The ID of the project this analysis belongs to."
+    },
+    "comments": {
+      "type": "string",
+      "description": "User comments on the analysis."
+    }
+  },
+  "required": ["lease_name", "analysis_type"]
+}
