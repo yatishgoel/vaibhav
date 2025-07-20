@@ -7,6 +7,7 @@ import {
   FileUploadZone,
   LeaseViewer,
   AbstractDisplay,
+  PDFViewer,
 } from "@/components/abstract";
 import { useState } from "react";
 
@@ -63,25 +64,34 @@ export default function AbstractAnalysis() {
             </div>
           )}
 
-          {/* Lease Viewer Section */}
+          {/* Document Viewer Section */}
           {uploadedFile && !showAbstract && (
-            <div className="bg-white p-6 rounded-lg border-0 shadow-lg mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Document Review
-              </h2>
-              <LeaseViewer file={uploadedFile} />
+            <div className="mb-8">
+              {uploadedFile.type === "application/pdf" ? (
+                <PDFViewer
+                  file={uploadedFile}
+                  onAnalyze={handleStartAnalysis}
+                />
+              ) : (
+                <div className="bg-white p-6 rounded-lg border-0 shadow-lg">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                    Document Review
+                  </h2>
+                  <LeaseViewer file={uploadedFile} />
 
-              <div className="mt-6 text-center">
-                <Button
-                  onClick={handleStartAnalysis}
-                  disabled={isProcessing}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                >
-                  {isProcessing
-                    ? "Analyzing Document..."
-                    : "Start Abstract Analysis"}
-                </Button>
-              </div>
+                  <div className="mt-6 text-center">
+                    <Button
+                      onClick={handleStartAnalysis}
+                      disabled={isProcessing}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
+                    >
+                      {isProcessing
+                        ? "Analyzing Document..."
+                        : "Start Abstract Analysis"}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -120,3 +120,24 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* PDF.js Styles */
+.react-pdf__Page {
+  background: white;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
+}
+
+.react-pdf__Page__textContent {
+  user-select: text;
+}
+
+.react-pdf__Page__annotations {
+  pointer-events: auto;
+}
+
+.react-pdf__Document {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
