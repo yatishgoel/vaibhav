@@ -1,30 +1,19 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ZoomIn,
   ZoomOut,
-  RotateCw,
   Download,
   FileText,
   MapPin,
-  ChevronLeft,
-  ChevronRight,
+  ExternalLink,
   Eye,
 } from "lucide-react";
 import { motion } from "framer-motion";
-
-// Set PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.js",
-  import.meta.url
-).toString();
 
 interface PDFCoordinate {
   id: string;
@@ -54,176 +43,186 @@ const sampleCoordinates: PDFCoordinate[] = [
   },
   {
     id: "2",
-    label: "Lease Term",
+    label: "Lease Start Date",
     page: 1,
     x: 150,
-    y: 450,
-    description: "Duration of the lease agreement",
-    category: "lease-term",
+    y: 400,
+    description: "Commencement date of lease",
+    category: "dates",
   },
   {
     id: "3",
-    label: "Tenant Information",
+    label: "Tenant Name",
     page: 1,
     x: 100,
-    y: 200,
-    description: "Primary tenant details and contact",
+    y: 150,
+    description: "Primary tenant information",
     category: "tenant",
   },
   {
     id: "4",
-    label: "Security Deposit",
-    page: 2,
-    x: 250,
-    y: 350,
-    description: "Required security deposit amount",
-    category: "rent",
+    label: "Lease Term",
+    page: 1,
+    x: 300,
+    y: 250,
+    description: "Duration of lease agreement",
+    category: "lease-term",
   },
   {
     id: "5",
-    label: "Renewal Clause",
+    label: "Security Deposit",
     page: 2,
     x: 180,
-    y: 500,
-    description: "Terms for lease renewal",
-    category: "clauses",
-  },
-  {
-    id: "6",
-    label: "Move-in Date",
-    page: 1,
-    x: 300,
-    y: 380,
-    description: "Official lease commencement date",
-    category: "dates",
+    y: 200,
+    description: "Required security deposit amount",
+    category: "rent",
   },
 ];
 
-const categoryColors = {
-  rent: "bg-green-100 text-green-800 border-green-300",
-  "lease-term": "bg-blue-100 text-blue-800 border-blue-300",
-  tenant: "bg-purple-100 text-purple-800 border-purple-300",
-  landlord: "bg-orange-100 text-orange-800 border-orange-300",
-  clauses: "bg-red-100 text-red-800 border-red-300",
-  dates: "bg-yellow-100 text-yellow-800 border-yellow-300",
-};
-
 export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
-  const [rotation, setRotation] = useState<number>(0);
-  const [fileUrl, setFileUrl] = useState<string>("");
-  const [selectedCoordinate, setSelectedCoordinate] = useState<string | null>(
-    null
-  );
-  const [highlightedCoords, setHighlightedCoords] = useState<PDFCoordinate[]>(
-    []
-  );
+  const [error, setError] = useState<string | null>(null);
+  const [
+    selectedCoordinate,
+    setSelectedCoordinate,
+  ] = useState<PDFCoordinate | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [pdfUrl, setPdfUrl] = useState<string>("");
 
-  const pageRef = useRef<HTMLDivElement>(null);
-  const documentRef = useRef<HTMLDivElement>(null);
-
+  // Create PDF URL when component mounts
   useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setFileUrl(url);
-    return () => URL.revokeObjectURL(url);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPdfUrl(url);
+
+      // Cleanup URL when component unmounts
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    }
   }, [file]);
 
-  useEffect(() => {
-    // Filter coordinates for current page
-    const pageCoords = sampleCoordinates.filter(
-      (coord) => coord.page === pageNumber
-    );
-    setHighlightedCoords(pageCoords);
-  }, [pageNumber]);
-
-  const onDocumentLoadSuccess = useCallback(
-    ({ numPages }: { numPages: number }) => {
-      setNumPages(numPages);
-    },
-    []
-  );
-
-  const scrollToCoordinate = useCallback(
-    (coordinate: PDFCoordinate) => {
-      if (coordinate.page !== pageNumber) {
-        setPageNumber(coordinate.page);
-        // Wait for page to render before scrolling
-        setTimeout(() => scrollToPoint(coordinate), 300);
-      } else {
-        scrollToPoint(coordinate);
-      }
-      setSelectedCoordinate(coordinate.id);
-    },
-    [pageNumber]
-  );
-
-  const scrollToPoint = useCallback(
-    (coordinate: PDFCoordinate) => {
-      if (pageRef.current && documentRef.current) {
-        const pageElement = pageRef.current;
-        const containerElement = documentRef.current;
-
-        // Calculate scaled coordinates
-        const scaledX = coordinate.x * scale;
-        const scaledY = coordinate.y * scale;
-
-        // Scroll to the coordinate with some offset for better visibility
-        const scrollLeft = Math.max(
-          0,
-          scaledX - containerElement.clientWidth / 2
-        );
-        const scrollTop = Math.max(
-          0,
-          scaledY - containerElement.clientHeight / 2
-        );
-
-        containerElement.scrollTo({
-          left: scrollLeft,
-          top: scrollTop,
-          behavior: "smooth",
-        });
-
-        // Add a temporary highlight effect
-        setTimeout(() => setSelectedCoordinate(null), 2000);
-      }
-    },
-    [scale]
-  );
-
-  const handleZoomIn = () => setScale((prev) => Math.min(prev + 0.2, 3.0));
-  const handleZoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.5));
-  const handleRotate = () => setRotation((prev) => (prev + 90) % 360);
-
-  const handlePreviousPage = () =>
-    setPageNumber((prev) => Math.max(prev - 1, 1));
-  const handleNextPage = () =>
-    setPageNumber((prev) => Math.min(prev + 1, numPages));
-
-  const handleDownload = () => {
-    const url = URL.createObjectURL(file);
+  // Download handler
+  const handleDownload = useCallback(() => {
     const a = document.createElement("a");
-    a.href = url;
+    a.href = pdfUrl;
     a.download = file.name;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  }, [file.name, pdfUrl]);
+
+  // Open in new tab
+  const handleOpenInNewTab = useCallback(() => {
+    window.open(pdfUrl, "_blank");
+  }, [pdfUrl]);
+
+  // Scroll to coordinate
+  const scrollToCoordinate = useCallback(
+    (coordinate: PDFCoordinate) => {
+      setSelectedCoordinate(coordinate);
+
+      if (iframeRef.current && coordinate.page) {
+        // Navigate to the specific page using URL fragment
+        const pageUrl = `${pdfUrl}#page=${coordinate.page}`;
+        if (iframeRef.current.src !== pageUrl) {
+          iframeRef.current.src = pageUrl;
+        }
+      }
+    },
+    [pdfUrl]
+  );
+
+  // Zoom handlers
+  const handleZoomIn = () => {
+    if (iframeRef.current) {
+      const newScale = Math.min(scale + 0.2, 2.0);
+      setScale(newScale);
+      iframeRef.current.style.transform = `scale(${newScale})`;
+      iframeRef.current.style.transformOrigin = "top left";
+    }
   };
 
+  const handleZoomOut = () => {
+    if (iframeRef.current) {
+      const newScale = Math.max(scale - 0.2, 0.5);
+      setScale(newScale);
+      iframeRef.current.style.transform = `scale(${newScale})`;
+      iframeRef.current.style.transformOrigin = "top left";
+    }
+  };
+
+  const handleResetZoom = () => {
+    if (iframeRef.current) {
+      setScale(1.0);
+      iframeRef.current.style.transform = "scale(1)";
+    }
+  };
+
+  const getCategoryColor = (category: PDFCoordinate["category"]) => {
+    switch (category) {
+      case "rent":
+        return "bg-green-100 text-green-800";
+      case "lease-term":
+        return "bg-blue-100 text-blue-800";
+      case "tenant":
+        return "bg-purple-100 text-purple-800";
+      case "landlord":
+        return "bg-orange-100 text-orange-800";
+      case "clauses":
+        return "bg-yellow-100 text-yellow-800";
+      case "dates":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  if (!pdfUrl) {
+    return (
+      <Card className="w-full">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">Loading PDF...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="w-full">
+        <CardContent className="p-6">
+          <div className="text-center">
+            <FileText className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Error Loading PDF
+            </h3>
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={handleDownload} variant="outline">
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
       {/* Coordinate Navigation Panel */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            Key Document Sections
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="lg:col-span-1">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              Key Sections
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
             {sampleCoordinates.map((coord) => (
               <motion.div
                 key={coord.id}
@@ -232,188 +231,156 @@ export default function PDFViewer({ file, onAnalyze }: PDFViewerProps) {
               >
                 <Button
                   variant={
-                    selectedCoordinate === coord.id ? "default" : "outline"
+                    selectedCoordinate?.id === coord.id ? "default" : "outline"
                   }
-                  className={`w-full h-auto p-3 flex flex-col items-start gap-1 ${
-                    selectedCoordinate === coord.id
-                      ? "ring-2 ring-blue-500"
-                      : ""
-                  }`}
+                  size="sm"
+                  className="w-full justify-start text-left h-auto p-3"
                   onClick={() => scrollToCoordinate(coord)}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-medium text-sm">{coord.label}</span>
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${categoryColors[coord.category]}`}
-                    >
-                      Page {coord.page}
-                    </Badge>
+                  <div className="flex flex-col items-start gap-1">
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="font-medium text-sm">{coord.label}</span>
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${getCategoryColor(
+                          coord.category
+                        )}`}
+                      >
+                        Page {coord.page}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-gray-600">
+                      {coord.description}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-500 text-left">
-                    {coord.description}
-                  </span>
                 </Button>
               </motion.div>
             ))}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* PDF Viewer Controls */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-gray-600" />
-              {file.name}
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {(file.size / 1024 / 1024).toFixed(2)} MB
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                className="flex items-center gap-1"
-              >
-                <Download className="w-4 h-4" />
-                Download
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePreviousPage}
-                disabled={pageNumber <= 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span className="text-sm font-medium px-3">
-                Page {pageNumber} of {numPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={pageNumber >= numPages}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+            {onAnalyze && (
+              <div className="pt-4 border-t">
+                <Button onClick={onAnalyze} className="w-full">
+                  <Eye className="w-4 h-4 mr-2" />
+                  Start Analysis
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleZoomOut}
-                disabled={scale <= 0.5}
-              >
-                <ZoomOut className="w-4 h-4" />
-              </Button>
-              <span className="text-sm font-medium px-2">
-                {Math.round(scale * 100)}%
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleZoomIn}
-                disabled={scale >= 3.0}
-              >
-                <ZoomIn className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleRotate}>
-                <RotateCw className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+      {/* PDF Viewer Panel */}
+      <div className="lg:col-span-3">
+        {/* PDF Controls */}
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 font-medium">
+                  {file.name}
+                </span>
+                <span className="text-xs text-gray-500">
+                  ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </span>
+              </div>
 
-          {/* PDF Document */}
-          <div
-            ref={documentRef}
-            className="border border-gray-300 rounded-lg overflow-auto bg-gray-100"
-            style={{ height: "600px" }}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleZoomOut}
+                  variant="outline"
+                  size="sm"
+                  disabled={scale <= 0.5}
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-gray-600 min-w-[60px] text-center">
+                  {Math.round(scale * 100)}%
+                </span>
+                <Button
+                  onClick={handleZoomIn}
+                  variant="outline"
+                  size="sm"
+                  disabled={scale >= 2.0}
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+                <Button onClick={handleResetZoom} variant="outline" size="sm">
+                  Reset
+                </Button>
+                <Button
+                  onClick={handleOpenInNewTab}
+                  variant="outline"
+                  size="sm"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
+                <Button onClick={handleDownload} variant="outline" size="sm">
+                  <Download className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* PDF Viewer */}
+        <Card>
+          <CardContent className="p-0">
+            <div className="w-full h-[700px] overflow-auto bg-gray-100">
+              <iframe
+                ref={iframeRef}
+                src={pdfUrl}
+                title={`PDF Preview: ${file.name}`}
+                width="100%"
+                height="700px"
+                className="border-0"
+                style={{
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top left",
+                  width: scale !== 1 ? `${100 / scale}%` : "100%",
+                  height: scale !== 1 ? `${700 / scale}px` : "700px",
+                }}
+                onError={() => setError("Failed to load PDF")}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Selected Coordinate Info */}
+        {selectedCoordinate && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
           >
-            <div className="relative">
-              <Document
-                file={fileUrl}
-                onLoadSuccess={onDocumentLoadSuccess}
-                loading={
-                  <div className="flex items-center justify-center h-96">
-                    <div className="text-gray-500">Loading PDF...</div>
+            <Card className="mt-4">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium">
+                        {selectedCoordinate.label}
+                      </h4>
+                      <Badge
+                        className={getCategoryColor(
+                          selectedCoordinate.category
+                        )}
+                      >
+                        {selectedCoordinate.category}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {selectedCoordinate.description}
+                    </p>
                   </div>
-                }
-                error={
-                  <div className="flex items-center justify-center h-96">
-                    <div className="text-red-500">Error loading PDF</div>
-                  </div>
-                }
-              >
-                <div ref={pageRef} className="relative">
-                  <Page
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    rotate={rotation}
-                    loading={
-                      <div className="flex items-center justify-center h-96">
-                        <div className="text-gray-500">Loading page...</div>
-                      </div>
-                    }
-                  />
-
-                  {/* Coordinate Markers */}
-                  {highlightedCoords.map((coord) => (
-                    <motion.div
-                      key={coord.id}
-                      className={`absolute w-4 h-4 rounded-full border-2 cursor-pointer z-10 ${
-                        selectedCoordinate === coord.id
-                          ? "bg-red-500 border-red-600 animate-pulse"
-                          : "bg-blue-500 border-blue-600 hover:bg-blue-600"
-                      }`}
-                      style={{
-                        left: coord.x * scale - 8,
-                        top: coord.y * scale - 8,
-                      }}
-                      onClick={() => scrollToCoordinate(coord)}
-                      whileHover={{ scale: 1.5 }}
-                      title={`${coord.label}: ${coord.description}`}
-                      animate={
-                        selectedCoordinate === coord.id
-                          ? { scale: [1, 1.5, 1] }
-                          : {}
-                      }
-                      transition={{
-                        duration: 0.5,
-                        repeat: selectedCoordinate === coord.id ? 2 : 0,
-                      }}
-                    />
-                  ))}
+                  <Badge variant="outline">
+                    Page {selectedCoordinate.page}
+                  </Badge>
                 </div>
-              </Document>
-            </div>
-          </div>
-
-          {/* Analysis Button */}
-          {onAnalyze && (
-            <div className="mt-6 text-center">
-              <Button
-                onClick={onAnalyze}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Start Abstract Analysis
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 }
