@@ -30,7 +30,6 @@ interface PDFCoordinate {
 
 interface PDFViewerProps {
   file: File;
-  onAnalyze?: () => void;
   scrollToCoordinates?: PDFCoordinate | null;
   extractedResults?: ExtractedResult[];
 }
@@ -155,16 +154,9 @@ const sampleCoordinates: PDFCoordinate[] = [
 
 export default function PDFViewer({
   file,
-  onAnalyze,
   scrollToCoordinates,
   extractedResults = [],
 }: PDFViewerProps) {
-  console.log("🔵 PDFViewer rendered with props:", {
-    fileName: file.name,
-    hasOnAnalyze: !!onAnalyze,
-    extractedResultsCount: extractedResults.length,
-  });
-
   const [pdfUrl, setPdfUrl] = React.useState<string>("");
   const [
     selectedCoordinate,
@@ -332,80 +324,105 @@ export default function PDFViewer({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {/* Coordinate Navigation Panel */}
+      {/* Questions & Answers Panel */}
       <div className="lg:col-span-1">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              Key Sections
-            </CardTitle>
-            <p className="text-sm text-gray-600">
-              Click to highlight and navigate to specific areas
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {coordinates.map((coord) => (
-              <motion.div
-                key={coord.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  variant={
-                    selectedCoordinate?.id === coord.id ? "default" : "outline"
-                  }
-                  size="sm"
-                  className="w-full justify-start text-left h-auto p-3"
-                  onClick={() => scrollToPosition(coord)}
-                  disabled={!documentLoaded}
+        {extractedResults.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Extracted Information
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Found {extractedResults.length} key data points. Click to
+                highlight in PDF.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3 max-h-[600px] overflow-y-auto">
+              {coordinates.map((coord) => (
+                <motion.div
+                  key={coord.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  <div className="flex flex-col items-start gap-1">
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="font-medium text-sm">{coord.label}</span>
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${getCategoryColor(
-                          coord.category
-                        )}`}
-                      >
-                        Page {coord.page}
-                      </Badge>
-                    </div>
-                    <span className="text-xs text-gray-600 line-clamp-2">
-                      {coord.answer || coord.description}
-                    </span>
-                    <div className="flex gap-2 text-xs text-gray-500">
-                      {coord.similarity && (
-                        <span className="bg-green-100 text-green-700 px-1 rounded">
-                          {coord.similarity.toFixed(0)}% match
+                  <Button
+                    variant={
+                      selectedCoordinate?.id === coord.id
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    className="w-full justify-start text-left h-auto p-3"
+                    onClick={() => scrollToPosition(coord)}
+                    disabled={!documentLoaded}
+                  >
+                    <div className="flex flex-col items-start gap-1 w-full">
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="font-medium text-sm text-blue-700">
+                          {coord.label}
                         </span>
-                      )}
-                      <span>
-                        {coord.width.toFixed(1)}% × {coord.height.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                </Button>
-              </motion.div>
-            ))}
+                        <Badge
+                          variant="secondary"
+                          className={`text-xs ${getCategoryColor(
+                            coord.category
+                          )}`}
+                        >
+                          Page {coord.page}
+                        </Badge>
+                      </div>
 
-            {onAnalyze && (
-              <div className="pt-4 border-t">
-                <Button
-                  onClick={() => {
-                    console.log("🔴 START ANALYSIS BUTTON CLICKED!");
-                    onAnalyze();
-                  }}
-                  className="w-full"
-                >
-                  <Eye className="w-4 h-4 mr-2" />
-                  Start Analysis
-                </Button>
+                      {coord.answer &&
+                        coord.answer !==
+                          "Information not found in lease document" && (
+                          <div className="bg-gray-50 p-2 rounded text-xs text-gray-800 w-full">
+                            <strong>Answer:</strong> {coord.answer}
+                          </div>
+                        )}
+
+                      {coord.answer ===
+                        "Information not found in lease document" && (
+                        <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-700 w-full">
+                          <strong>Not Found:</strong> Information not available
+                          in document
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 text-xs text-gray-500 mt-1">
+                        {coord.similarity && (
+                          <span className="bg-green-100 text-green-700 px-1 rounded">
+                            {coord.similarity.toFixed(0)}% confidence
+                          </span>
+                        )}
+                        <span>Page {coord.page}</span>
+                      </div>
+                    </div>
+                  </Button>
+                </motion.div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                Key Sections
+              </CardTitle>
+              <p className="text-sm text-gray-600">
+                Upload a PDF to extract lease information automatically
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-sm">No analysis results yet</p>
+                <p className="text-xs">
+                  Upload a lease document to get started
+                </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* PDF Viewer Panel */}

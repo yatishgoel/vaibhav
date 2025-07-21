@@ -273,7 +273,7 @@ export default function AbstractAnalysis() {
               {uploadedFile.type === "application/pdf" ? (
                 <PDFViewer
                   file={uploadedFile}
-                  onAnalyze={handleStartAnalysis}
+                  extractedResults={extractedResults}
                 />
               ) : (
                 <div className="bg-white p-6 rounded-lg border-0 shadow-lg">
@@ -281,16 +281,6 @@ export default function AbstractAnalysis() {
                     Document Review
                   </h2>
                   <LeaseViewer file={uploadedFile} />
-
-                  <div className="mt-6 text-center">
-                    <Button
-                      onClick={handleStartAnalysis}
-                      disabled={isProcessing}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3"
-                    >
-                      Start Abstract Analysis
-                    </Button>
-                  </div>
                 </div>
               )}
             </div>
