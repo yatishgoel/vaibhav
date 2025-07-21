@@ -28,6 +28,7 @@ export default function FileUploadZone({ onFileUpload }: FileUploadZoneProps) {
       setDragActive(false);
 
       const files = Array.from(e.dataTransfer.files);
+      console.log("files", files);
       if (files.length > 0) {
         onFileUpload(files[0]);
       }

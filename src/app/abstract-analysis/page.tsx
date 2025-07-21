@@ -8,6 +8,7 @@ import {
   Download,
   AlertCircle,
   CheckCircle,
+  Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ export default function AbstractAnalysis() {
   });
 
   const handleFileUpload = (file: File) => {
+    console.log("📁 File uploaded:", file);
     setUploadedFile(file);
     setShowResults(false);
     setExtractedResults([]);
@@ -56,13 +58,37 @@ export default function AbstractAnalysis() {
     });
   };
 
+  const testApiConnection = async () => {
+    console.log("🔍 Testing API connection...");
+    try {
+      const result = await ApiService.testConnection();
+      if (result.success) {
+        alert(`✅ Connection successful: ${result.message}`);
+      } else {
+        alert(`❌ Connection failed: ${result.message}`);
+      }
+    } catch (error) {
+      console.error("Connection test error:", error);
+      alert(
+        `❌ Connection test failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+  };
+
   const handleStartAnalysis = async () => {
+    console.log("🚀 handleStartAnalysis called");
+    console.log("📁 uploadedFile:", uploadedFile);
+
     if (!uploadedFile) {
       alert("Please upload a lease document first.");
       return;
     }
 
     try {
+      console.log("🔧 Starting analysis workflow...");
+
       // Reset state
       setProcessing({
         isUploading: true,
@@ -72,22 +98,27 @@ export default function AbstractAnalysis() {
         error: null,
       });
 
+      console.log("📤 State updated, calling API...");
+
       // Upload file and analyze with progress updates
-      const results = await ApiService.uploadAndAnalyze(uploadedFile, (stage, message) => {
-        if (stage === 'uploading') {
-          setProcessing(prev => ({
-            ...prev,
-            uploadProgress: message,
-          }));
-        } else if (stage === 'analyzing') {
-          setProcessing(prev => ({
-            ...prev,
-            isUploading: false,
-            isAnalyzing: true,
-            analysisProgress: message,
-          }));
+      const results = await ApiService.uploadAndAnalyze(
+        uploadedFile,
+        (stage, message) => {
+          if (stage === "uploading") {
+            setProcessing((prev) => ({
+              ...prev,
+              uploadProgress: message,
+            }));
+          } else if (stage === "analyzing") {
+            setProcessing((prev) => ({
+              ...prev,
+              isUploading: false,
+              isAnalyzing: true,
+              analysisProgress: message,
+            }));
+          }
         }
-      });
+      );
 
       if (results.status === "success") {
         setExtractedResults(results.extracted_results);
@@ -124,13 +155,28 @@ export default function AbstractAnalysis() {
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="max-w-7xl mx-auto p-6 sm:p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Abstract Analysis
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Upload and analyze lease documents to extract key insights and
-              patterns.
-            </p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Abstract Analysis
+                </h1>
+                <p className="text-gray-600 mt-2">
+                  Upload and analyze lease documents to extract key insights and
+                  patterns.
+                </p>
+              </div>
+
+              {/* Debug: Test Connection Button */}
+              <Button
+                onClick={testApiConnection}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <Wifi className="w-4 h-4" />
+                Test API Connection
+              </Button>
+            </div>
           </div>
 
           {/* File Upload Section */}
