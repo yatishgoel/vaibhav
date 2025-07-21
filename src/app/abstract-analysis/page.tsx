@@ -44,7 +44,7 @@ export default function AbstractAnalysis() {
     error: null,
   });
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     console.log("📁 File uploaded:", file);
     setUploadedFile(file);
     setShowResults(false);
@@ -56,6 +56,10 @@ export default function AbstractAnalysis() {
       analysisProgress: "",
       error: null,
     });
+
+    // Automatically start analysis when file is uploaded
+    console.log("🚀 Auto-starting analysis after file upload...");
+    await performAnalysis(file);
   };
 
   const testApiConnection = async () => {
@@ -77,14 +81,9 @@ export default function AbstractAnalysis() {
     }
   };
 
-  const handleStartAnalysis = async () => {
-    console.log("🚀 handleStartAnalysis called");
-    console.log("📁 uploadedFile:", uploadedFile);
-
-    if (!uploadedFile) {
-      alert("Please upload a lease document first.");
-      return;
-    }
+  const performAnalysis = async (fileToAnalyze: File) => {
+    console.log("🚀 performAnalysis called");
+    console.log("📁 fileToAnalyze:", fileToAnalyze);
 
     try {
       console.log("🔧 Starting analysis workflow...");
@@ -102,7 +101,7 @@ export default function AbstractAnalysis() {
 
       // Upload file and analyze with progress updates
       const results = await ApiService.uploadAndAnalyze(
-        uploadedFile,
+        fileToAnalyze,
         (stage, message) => {
           if (stage === "uploading") {
             setProcessing((prev) => ({
@@ -148,6 +147,16 @@ export default function AbstractAnalysis() {
     }
   };
 
+  const handleStartAnalysis = async () => {
+    if (!uploadedFile) {
+      console.error("❌ No file to analyze");
+      alert("Please upload a lease document first.");
+      return;
+    }
+
+    await performAnalysis(uploadedFile);
+  };
+
   const isProcessing = processing.isUploading || processing.isAnalyzing;
 
   return (
@@ -167,56 +176,17 @@ export default function AbstractAnalysis() {
               </div>
 
               {/* Debug: Test Connection Button */}
-              <div className="flex gap-2">
-                <Button
-                  onClick={testApiConnection}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Wifi className="w-4 h-4" />
-                  Test API Connection
-                </Button>
-                
-                {/* Debug: Manual Analysis Trigger */}
-                {uploadedFile && (
-                  <Button
-                    onClick={() => {
-                      console.log("🔴 MANUAL ANALYSIS TRIGGER CLICKED!");
-                      handleStartAnalysis();
-                    }}
-                    variant="default"
-                    size="sm"
-                    className="gap-2 bg-red-600 hover:bg-red-700"
-                  >
-                    <Search className="w-4 h-4" />
-                    Force Analysis
-                  </Button>
-                )}
-              </div>
+              <Button
+                onClick={testApiConnection}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                <Wifi className="w-4 h-4" />
+                Test API Connection
+              </Button>
             </div>
           </div>
-
-          {/* Debug: Current State */}
-          <Card className="mb-4 bg-gray-50 border-gray-200">
-            <CardContent className="p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Debug State:</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                <div>
-                  <span className="font-medium">File:</span> {uploadedFile ? uploadedFile.name : 'None'}
-                </div>
-                <div>
-                  <span className="font-medium">Processing:</span> {isProcessing ? 'Yes' : 'No'}
-                </div>
-                <div>
-                  <span className="font-medium">Results:</span> {extractedResults.length} items
-                </div>
-                <div>
-                  <span className="font-medium">Error:</span> {processing.error ? 'Yes' : 'No'}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* File Upload Section */}
           {!uploadedFile && !isProcessing && (
