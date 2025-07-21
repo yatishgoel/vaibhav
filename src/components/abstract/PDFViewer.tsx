@@ -323,7 +323,7 @@ export default function PDFViewer({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Questions & Answers Panel */}
       <div className="lg:col-span-1">
         {extractedResults.length > 0 ? (
@@ -426,7 +426,7 @@ export default function PDFViewer({
       </div>
 
       {/* PDF Viewer Panel */}
-      <div className="lg:col-span-3">
+      <div className="lg:col-span-1">
         {/* PDF Controls */}
         <Card className="mb-4">
           <CardContent className="p-4">
