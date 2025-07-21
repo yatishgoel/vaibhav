@@ -108,22 +108,7 @@ export default function PDFViewer({
 
   // Get category-based colors for highlights
   const getCategoryHighlightColor = (category: PDFCoordinate["category"]) => {
-    switch (category) {
-      case "rent":
-        return { backgroundColor: "#22c55e", opacity: 0.3 }; // Green
-      case "lease-term":
-        return { backgroundColor: "#3b82f6", opacity: 0.3 }; // Blue
-      case "tenant":
-        return { backgroundColor: "#a855f7", opacity: 0.3 }; // Purple
-      case "landlord":
-        return { backgroundColor: "#f97316", opacity: 0.3 }; // Orange
-      case "clauses":
-        return { backgroundColor: "#eab308", opacity: 0.3 }; // Yellow
-      case "dates":
-        return { backgroundColor: "#ef4444", opacity: 0.3 }; // Red
-      default:
-        return { backgroundColor: "#6b7280", opacity: 0.3 }; // Gray
-    }
+    return { backgroundColor: "#eab308", opacity: 0.3 }; // Always yellow
   };
 
   // Configure highlight plugin with custom rendering (only show selected highlight)
@@ -328,42 +313,6 @@ export default function PDFViewer({
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Color Legend */}
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle className="text-sm">Highlight Colors</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {[
-              { category: "rent", label: "Rent & Payments", color: "#22c55e" },
-              {
-                category: "lease-term",
-                label: "Lease Terms",
-                color: "#3b82f6",
-              },
-              { category: "tenant", label: "Tenant Info", color: "#a855f7" },
-              {
-                category: "landlord",
-                label: "Landlord Info",
-                color: "#f97316",
-              },
-              { category: "clauses", label: "Clauses", color: "#eab308" },
-              { category: "dates", label: "Important Dates", color: "#ef4444" },
-            ].map((item) => (
-              <div
-                key={item.category}
-                className="flex items-center gap-2 text-xs"
-              >
-                <div
-                  className="w-3 h-3 rounded border"
-                  style={{ backgroundColor: item.color, opacity: 0.3 }}
-                />
-                <span className="text-gray-600">{item.label}</span>
-              </div>
-            ))}
           </CardContent>
         </Card>
       </div>
