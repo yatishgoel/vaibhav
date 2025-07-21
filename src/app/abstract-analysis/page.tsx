@@ -167,17 +167,56 @@ export default function AbstractAnalysis() {
               </div>
 
               {/* Debug: Test Connection Button */}
-              <Button
-                onClick={testApiConnection}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-              >
-                <Wifi className="w-4 h-4" />
-                Test API Connection
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={testApiConnection}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Wifi className="w-4 h-4" />
+                  Test API Connection
+                </Button>
+                
+                {/* Debug: Manual Analysis Trigger */}
+                {uploadedFile && (
+                  <Button
+                    onClick={() => {
+                      console.log("🔴 MANUAL ANALYSIS TRIGGER CLICKED!");
+                      handleStartAnalysis();
+                    }}
+                    variant="default"
+                    size="sm"
+                    className="gap-2 bg-red-600 hover:bg-red-700"
+                  >
+                    <Search className="w-4 h-4" />
+                    Force Analysis
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Debug: Current State */}
+          <Card className="mb-4 bg-gray-50 border-gray-200">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Debug State:</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                <div>
+                  <span className="font-medium">File:</span> {uploadedFile ? uploadedFile.name : 'None'}
+                </div>
+                <div>
+                  <span className="font-medium">Processing:</span> {isProcessing ? 'Yes' : 'No'}
+                </div>
+                <div>
+                  <span className="font-medium">Results:</span> {extractedResults.length} items
+                </div>
+                <div>
+                  <span className="font-medium">Error:</span> {processing.error ? 'Yes' : 'No'}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* File Upload Section */}
           {!uploadedFile && !isProcessing && (

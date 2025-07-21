@@ -159,6 +159,12 @@ export default function PDFViewer({
   scrollToCoordinates,
   extractedResults = [],
 }: PDFViewerProps) {
+  console.log("🔵 PDFViewer rendered with props:", {
+    fileName: file.name,
+    hasOnAnalyze: !!onAnalyze,
+    extractedResultsCount: extractedResults.length,
+  });
+
   const [pdfUrl, setPdfUrl] = React.useState<string>("");
   const [
     selectedCoordinate,
@@ -386,7 +392,13 @@ export default function PDFViewer({
 
             {onAnalyze && (
               <div className="pt-4 border-t">
-                <Button onClick={onAnalyze} className="w-full">
+                <Button
+                  onClick={() => {
+                    console.log("🔴 START ANALYSIS BUTTON CLICKED!");
+                    onAnalyze();
+                  }}
+                  className="w-full"
+                >
                   <Eye className="w-4 h-4 mr-2" />
                   Start Analysis
                 </Button>
