@@ -1,3 +1,34 @@
+// API Response Types for PDF Analysis
+export interface PDFCoordinates {
+  x0: number;
+  y0: number;
+  width: number;
+  height: number;
+}
+
+export interface PDFHighlight {
+  page: number;
+  coordinates: PDFCoordinates;
+  matched_text: string;
+  similarity: number;
+}
+
+export interface ExtractedResult {
+  question: string;
+  answer: string;
+  pdf_highlight: PDFHighlight;
+}
+
+export interface PDFAnalysisResponse {
+  status: "success" | "error";
+  extracted_results: ExtractedResult[];
+  message?: string;
+}
+
+export interface PDFAnalysisRequest {
+  pdf_url: string;
+}
+
 // Mock LeaseAnalysis entity for demo purposes
 // In a real app, this would connect to your backend API
 

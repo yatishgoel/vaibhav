@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Download, FileText, MapPin, Eye, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
+import { ExtractedResult } from "@/entities/LeaseAnalysis";
 
 interface PDFCoordinate {
   id: string;
@@ -23,13 +24,75 @@ interface PDFCoordinate {
   height: number; // Percentage height (0-100)
   description: string;
   category: "rent" | "lease-term" | "tenant" | "landlord" | "clauses" | "dates";
+  answer?: string;
+  similarity?: number;
 }
 
 interface PDFViewerProps {
   file: File;
   onAnalyze?: () => void;
   scrollToCoordinates?: PDFCoordinate | null;
+  extractedResults?: ExtractedResult[];
 }
+
+// Convert API coordinates to percentage-based coordinates
+const convertCoordinatesToPercentage = (
+  result: ExtractedResult,
+  pageWidth: number = 595, // Standard PDF page width in points
+  pageHeight: number = 842 // Standard PDF page height in points
+): PDFCoordinate => {
+  const { coordinates } = result.pdf_highlight;
+
+  return {
+    id: `extracted-${Math.random().toString(36).substr(2, 9)}`,
+    label: result.question,
+    page: result.pdf_highlight.page,
+    x: (coordinates.x0 / pageWidth) * 100,
+    y: (coordinates.y0 / pageHeight) * 100,
+    width: (coordinates.width / pageWidth) * 100,
+    height: (coordinates.height / pageHeight) * 100,
+    description: result.answer,
+    category: getCategoryFromQuestion(result.question),
+    answer: result.answer,
+    similarity: result.pdf_highlight.similarity,
+  };
+};
+
+// Determine category based on question content
+const getCategoryFromQuestion = (
+  question: string
+): PDFCoordinate["category"] => {
+  const lowerQuestion = question.toLowerCase();
+
+  if (
+    lowerQuestion.includes("rent") ||
+    lowerQuestion.includes("deposit") ||
+    lowerQuestion.includes("payment")
+  ) {
+    return "rent";
+  }
+  if (
+    lowerQuestion.includes("term") ||
+    lowerQuestion.includes("duration") ||
+    lowerQuestion.includes("lease term")
+  ) {
+    return "lease-term";
+  }
+  if (lowerQuestion.includes("tenant") || lowerQuestion.includes("lessee")) {
+    return "tenant";
+  }
+  if (lowerQuestion.includes("landlord") || lowerQuestion.includes("lessor")) {
+    return "landlord";
+  }
+  if (
+    lowerQuestion.includes("date") ||
+    lowerQuestion.includes("commencement") ||
+    lowerQuestion.includes("expiration")
+  ) {
+    return "dates";
+  }
+  return "clauses";
+};
 
 // Sample coordinates for demonstration (using percentages with width and height)
 const sampleCoordinates: PDFCoordinate[] = [
@@ -94,6 +157,7 @@ export default function PDFViewer({
   file,
   onAnalyze,
   scrollToCoordinates,
+  extractedResults = [],
 }: PDFViewerProps) {
   const [pdfUrl, setPdfUrl] = React.useState<string>("");
   const [
@@ -101,6 +165,16 @@ export default function PDFViewer({
     setSelectedCoordinate,
   ] = React.useState<PDFCoordinate | null>(null);
   const [documentLoaded, setDocumentLoaded] = React.useState(false);
+
+  // Convert extracted results to coordinates or use sample data
+  const coordinates = React.useMemo(() => {
+    if (extractedResults.length > 0) {
+      return extractedResults.map((result) =>
+        convertCoordinatesToPercentage(result)
+      );
+    }
+    return sampleCoordinates;
+  }, [extractedResults]);
 
   // Initialize plugins
   const pageNavigationPluginInstance = pageNavigationPlugin();
@@ -265,7 +339,7 @@ export default function PDFViewer({
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
-            {sampleCoordinates.map((coord) => (
+            {coordinates.map((coord) => (
               <motion.div
                 key={coord.id}
                 whileHover={{ scale: 1.02 }}
@@ -292,12 +366,17 @@ export default function PDFViewer({
                         Page {coord.page}
                       </Badge>
                     </div>
-                    <span className="text-xs text-gray-600">
-                      {coord.description}
+                    <span className="text-xs text-gray-600 line-clamp-2">
+                      {coord.answer || coord.description}
                     </span>
-                    <div className="flex gap-1 text-xs text-gray-500">
+                    <div className="flex gap-2 text-xs text-gray-500">
+                      {coord.similarity && (
+                        <span className="bg-green-100 text-green-700 px-1 rounded">
+                          {coord.similarity.toFixed(0)}% match
+                        </span>
+                      )}
                       <span>
-                        {coord.width}% × {coord.height}%
+                        {coord.width.toFixed(1)}% × {coord.height.toFixed(1)}%
                       </span>
                     </div>
                   </div>
@@ -394,19 +473,28 @@ export default function PDFViewer({
                         {selectedCoordinate.category}
                       </Badge>
                     </div>
-                    <p className="text-sm text-gray-600">
-                      {selectedCoordinate.description}
+                    <p className="text-sm text-gray-600 mb-2">
+                      {selectedCoordinate.answer ||
+                        selectedCoordinate.description}
                     </p>
+                    {selectedCoordinate.similarity && (
+                      <div className="mb-2">
+                        <span className="inline-block bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+                          {selectedCoordinate.similarity.toFixed(1)}% similarity
+                          match
+                        </span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4 mt-2 text-xs text-gray-500">
                       <div>
                         <span className="font-medium">Position:</span>{" "}
-                        {selectedCoordinate.x}% left, {selectedCoordinate.y}%
-                        top
+                        {selectedCoordinate.x.toFixed(1)}% left,{" "}
+                        {selectedCoordinate.y.toFixed(1)}% top
                       </div>
                       <div>
                         <span className="font-medium">Size:</span>{" "}
-                        {selectedCoordinate.width}% ×{" "}
-                        {selectedCoordinate.height}%
+                        {selectedCoordinate.width.toFixed(1)}% ×{" "}
+                        {selectedCoordinate.height.toFixed(1)}%
                       </div>
                     </div>
                   </div>
