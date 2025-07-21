@@ -4,7 +4,17 @@ import {
 } from "@/entities/LeaseAnalysis";
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://0.0.0.0:8001";
+
+interface FileUploadResponse {
+  status: "success" | "error";
+  message: string;
+  filename: string;
+  public_url: string;
+  original_filename: string;
+  file_size: number;
+  bucket: string;
+}
 
 export class ApiService {
   /**
@@ -19,6 +29,9 @@ export class ApiService {
     try {
       const response = await fetch(`${API_BASE_URL}/upload-file`, {
         method: "POST",
+        headers: {
+          accept: "application/json",
+        },
         body: formData,
       });
 
@@ -26,8 +39,13 @@ export class ApiService {
         throw new Error(`Upload failed: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      return data.file_url || data.url;
+      const data: FileUploadResponse = await response.json();
+
+      if (data.status === "success") {
+        return data.public_url;
+      } else {
+        throw new Error(data.message || "Upload failed");
+      }
     } catch (error) {
       console.error("File upload error:", error);
       throw new Error("Failed to upload file");
@@ -49,18 +67,30 @@ export class ApiService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          accept: "application/json",
         },
         body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        throw new Error(`Analysis failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(
+          `Analysis failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
       const data: PDFAnalysisResponse = await response.json();
-      return data;
+
+      if (data.status === "success") {
+        return data;
+      } else {
+        throw new Error(data.message || "Analysis failed");
+      }
     } catch (error) {
       console.error("PDF analysis error:", error);
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error("Failed to analyze PDF");
     }
   }
