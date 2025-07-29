@@ -6,6 +6,7 @@ import {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL  || "http://20.195.13.138" || "http://localhost:8000" ; 
 
+  
 interface FileUploadResponse {
   status: "success" | "error";
   message: string;
