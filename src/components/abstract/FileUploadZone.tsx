@@ -1,3 +1,4 @@
+'use client'
 import React, { useCallback } from "react";
 import { Upload, FileText, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";

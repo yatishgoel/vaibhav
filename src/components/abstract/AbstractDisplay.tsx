@@ -1,3 +1,4 @@
+'use client'
 import React from "react";
 import { Download, FileSpreadsheet, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
