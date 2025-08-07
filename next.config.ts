@@ -1,21 +1,34 @@
-import { NextConfig } from 'next';
+import { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  webpack: (config, { nextRuntime }) => {
-    if (nextRuntime === "nodejs") {
-      config.resolve.alias.canvas = false;
+  webpack: (config, { isServer }) => {
+    // Handle canvas package for PDF.js
+    if (isServer) {
+      // Allow canvas to be bundled on the server side
+      config.externals = config.externals || [];
+      config.externals.push({
+        canvas: "canvas",
+      });
+    } else {
+      // Prevent canvas from being bundled on the client side
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        canvas: false,
+      };
     }
 
-    // Prevent Webpack from bundling the native `canvas` module
-    // config.resolve = config.resolve || {};
-    // config.resolve.fallback = {
-    //   ...(config.resolve.fallback || {}),
-    //   canvas: false,
-    //   fs: false,
-    //   path: false,
-    // };
+    // Additional fallbacks for client-side
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      os: false,
+    };
+
     return config;
   },
+  // Add serverExternalPackages for better canvas handling
+  serverExternalPackages: ["canvas"],
 };
 
 export default nextConfig;

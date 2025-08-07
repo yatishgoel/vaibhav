@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React from "react";
 import { Worker, Viewer } from "@react-pdf-viewer/core";
 import { pageNavigationPlugin } from "@react-pdf-viewer/page-navigation";
 import {
@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Download, FileText, MapPin, Eye, ExternalLink } from "lucide-react";
+import { Download, FileText, MapPin, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import { ExtractedResult } from "@/entities/LeaseAnalysis";
 
@@ -179,7 +179,7 @@ export default function PDFViewer({
   const { jumpToPage } = pageNavigationPluginInstance;
 
   // Get category-based colors for highlights
-  const getCategoryHighlightColor = (category: PDFCoordinate["category"]) => {
+  const getCategoryHighlightColor = () => {
     return { backgroundColor: "#eab308", opacity: 0.3 }; // Always yellow
   };
 
@@ -201,7 +201,7 @@ export default function PDFViewer({
                 },
                 props.rotation
               ),
-              ...getCategoryHighlightColor(selectedCoordinate.category),
+              ...getCategoryHighlightColor(),
               opacity: 0.5,
               border: "2px solid #3b82f6",
               borderRadius: "2px",
@@ -465,7 +465,7 @@ export default function PDFViewer({
         <Card>
           <CardContent className="p-0">
             <div className="w-full h-[700px] overflow-hidden">
-              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+              <Worker workerUrl="/pdf.worker.min.js">
                 <Viewer
                   fileUrl={pdfUrl}
                   plugins={[
