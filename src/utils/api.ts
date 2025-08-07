@@ -3,8 +3,11 @@ import {
   PDFAnalysisRequest,
 } from "@/entities/LeaseAnalysis";
 
+// const API_BASE_URL =
+//   process.env.NEXT_PUBLIC_API_BASE_URL  || "http://20.195.13.138" || "http://localhost:8000" ; 
+
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL  || "http://20.195.13.138" || "http://localhost:8000" ; 
+     "http://localhost:8000" ; 
 
   
 interface FileUploadResponse {
@@ -17,7 +20,119 @@ interface FileUploadResponse {
   bucket: string;
 }
 
+interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+interface LoginResponse {
+  status?: string;
+  success: boolean;
+  message: string;
+  userID?: string;
+  email?: string;
+  name?: string;
+  accountID?: string;
+  user?: {
+    username: string;
+    role: string;
+  };
+}
+
 export class ApiService {
+  /**
+   * Get the base URL for API requests
+   * @returns The API base URL
+   */
+  static getBaseUrl(): string {
+    return API_BASE_URL;
+  }
+  /**
+   * Authenticate user with username and password
+   * @param username User's username
+   * @param password User's password
+   * @returns Promise with login response
+   */
+  static async login(username: string, password: string): Promise<LoginResponse> {
+    console.log("🔐 Starting user login...");
+    console.log("👤 Username:", username);
+
+    try {
+      const requestBody: LoginRequest = {
+        username,
+        password,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/user-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("📨 Login response status:", response.status);
+      console.log(response.ok);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Login failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        return {
+          status: "error",
+          success: false,
+          message: errorData.message || "Login failed",
+        };
+      }
+
+      const data: LoginResponse = await response.json();
+      console.log("✅ Login successful:", data);
+      
+      // Store user data in localStorage for profile access
+      if (data.userID && data.email && data.name) {
+        const userData = {
+          id: data.userID,
+          email: data.email,
+          full_name: data.name,
+          accountID: data.accountID,
+          role: "user", // Default role, can be updated if backend provides it
+        };
+        localStorage.setItem("userData", JSON.stringify(userData));
+      }
+      
+      return {
+        status: "success",
+        success: true,
+        message: data.message || "Login successful",
+        userID: data.userID,
+        email: data.email,
+        name: data.name,
+        accountID: data.accountID,
+        user: data.user,
+      };
+    } catch (error) {
+      console.error("💥 Login error:", error);
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        return {
+          status: "error",
+          success: false,
+          message: `Network error: Cannot connect to API server at ${API_BASE_URL}. Please check if the server is running and accessible.`,
+        };
+      }
+
+      return {
+        status: "error",
+        success: false,
+        message: error instanceof Error ? error.message : "Login failed - Unknown error",
+      };
+    }
+  }
+
   /**
    * Test API connectivity
    * @returns Promise indicating if API is reachable

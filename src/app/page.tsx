@@ -79,7 +79,7 @@ export default function Home() {
                   {item.label}
                 </a>
               ))}
-              <Link href={createPageUrl("Dashboard")}>
+              <Link href="/login">
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-all duration-200">
                   Get Started
                 </Button>
@@ -119,7 +119,7 @@ export default function Home() {
                     {item.label}
                   </a>
                 ))}
-                <Link href={createPageUrl("Dashboard")}>
+                <Link href="/login">
                   <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium">
                     Get Started
                   </Button>
@@ -150,7 +150,7 @@ export default function Home() {
                 Save 90%+ on commercial lease abstraction & review, with source
                 citations.
               </p>
-              <Link href={createPageUrl("Dashboard")}>
+              <Link href="/login">
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl">
                   Start Analyzing
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -220,7 +220,7 @@ export default function Home() {
               Get started with LeaseFlow today and experience the future of
               lease analysis
             </p>
-            <Link href={createPageUrl("Dashboard")}>
+            <Link href="/login">
               <Button className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl">
                 Start Your Free Trial
                 <ArrowRight className="ml-2 h-5 w-5" />

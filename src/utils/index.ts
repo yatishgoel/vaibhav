@@ -28,6 +28,11 @@ export const navigationItems = [
     url: createPageUrl("BenchmarkAnalysis"),
     icon: "TrendingUp",
   },
+  {
+    title: "Property Analysis",
+    url: createPageUrl("PropertyAnalysis"),
+    icon: "FileText",
+  },
 ];
 
 export const userNavigationItems = [

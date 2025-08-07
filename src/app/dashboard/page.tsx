@@ -96,7 +96,7 @@ export default function Dashboard() {
                     Upload a lease document and get instant intelligent
                     abstractions with key terms and clauses.
                   </p>
-                  <Link href={createPageUrl("AbstractAnalysis")}>
+                  <Link href="/login">
                     <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                       Start Analysis
                       <ArrowRight className="w-4 h-4 ml-2" />
@@ -125,7 +125,7 @@ export default function Dashboard() {
                     Compare multiple leases and generate comprehensive benchmark
                     reports for market analysis.
                   </p>
-                  <Link href={createPageUrl("BenchmarkAnalysis")}>
+                  <Link href="/login">
                     <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
                       Generate Benchmark
                       <ArrowRight className="w-4 h-4 ml-2" />
