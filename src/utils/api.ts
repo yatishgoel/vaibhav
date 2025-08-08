@@ -39,6 +39,50 @@ interface LoginResponse {
   };
 }
 
+interface CreateProjectRequest {
+  projectName: string;
+  userID: string;
+}
+
+interface CreateProjectResponse {
+  status: "success" | "error";
+  message: string;
+  projectID?: string;
+  projectName?: string;
+}
+
+interface GetProjectsRequest {
+  userID: string;
+}
+
+interface ProjectItem {
+  projectID: string;
+  projectName: string;
+}
+
+interface GetProjectsResponse {
+  status: "success" | "error";
+  message: string;
+  projects?: ProjectItem[];
+}
+
+interface FetchProjectRequest {
+  projectID: string;
+}
+
+interface PDFItem {
+  url: string;
+  filename: string;
+}
+
+interface FetchProjectResponse {
+  status: "success" | "error";
+  message: string;
+  projectID?: string;
+  pdf_urls?: string[];
+  pdfs?: PDFItem[]; // Keep for backward compatibility
+}
+
 export class ApiService {
   /**
    * Get the base URL for API requests
@@ -192,17 +236,21 @@ export class ApiService {
    * @param file The file to upload
    * @returns Promise with the uploaded file URL
    */
-  static async uploadFile(file: File): Promise<string> {
+  static async uploadFile(file: File, projectId?: string): Promise<string> {
     console.log("🚀 Starting file upload...");
     console.log("📁 File details:", {
       name: file.name,
       size: file.size,
       type: file.type,
     });
+    console.log("📁 Project ID:", projectId);
     console.log("🌐 API URL:", `${API_BASE_URL}/upload-file`);
 
     const formData = new FormData();
     formData.append("file", file);
+    if (projectId) {
+      formData.append("projectID", projectId);
+    }
 
     try {
       console.log("📤 Making upload request...");
@@ -341,19 +389,22 @@ export class ApiService {
    * Complete workflow: Upload file and analyze it
    * @param file The file to upload and analyze
    * @param onProgress Optional callback for progress updates
+   * @param projectId Optional project ID to associate with the analysis
    * @returns Promise with analysis results
    */
   static async uploadAndAnalyze(
     file: File,
-    onProgress?: (stage: "uploading" | "analyzing", message: string) => void
+    onProgress?: (stage: "uploading" | "analyzing", message: string) => void,
+    projectId?: string
   ): Promise<PDFAnalysisResponse> {
     console.log("🔄 Starting upload and analyze workflow...");
+    console.log("📁 Project ID:", projectId);
 
     try {
       // Step 1: Upload file
       console.log("📤 Step 1: Uploading file...");
       onProgress?.("uploading", "Uploading file to server...");
-      const fileUrl = await this.uploadFile(file);
+      const fileUrl = await this.uploadFile(file, projectId);
 
       // Step 2: Analyze PDF
       console.log("🔍 Step 2: Analyzing PDF...");
@@ -365,6 +416,186 @@ export class ApiService {
     } catch (error) {
       console.error("💥 Upload and analyze workflow error:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Create a new project
+   * @param projectName Name of the project
+   * @param userID ID of the user creating the project
+   * @returns Promise with create project response
+   */
+  static async createProject(projectName: string, userID: string): Promise<CreateProjectResponse> {
+    console.log("📁 Creating project...");
+    console.log("📝 Project name:", projectName);
+    console.log("👤 User ID:", userID);
+
+    try {
+      const requestBody: CreateProjectRequest = {
+        projectName,
+        userID,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/create-project`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("📨 Create project response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Create project failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        return {
+          status: "error",
+          message: errorData.message || "Failed to create project",
+        };
+      }
+
+      const data: CreateProjectResponse = await response.json();
+      console.log("✅ Project created successfully:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("💥 Create project error:", error);
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        return {
+          status: "error",
+          message: `Network error: Cannot connect to API server at ${API_BASE_URL}. Please check if the server is running and accessible.`,
+        };
+      }
+
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to create project - Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Get projects for a user
+   * @param userID ID of the user
+   * @returns Promise with projects list
+   */
+  static async getProjects(userID: string): Promise<GetProjectsResponse> {
+    console.log("📁 Fetching projects...");
+    console.log("👤 User ID:", userID);
+
+    try {
+      const requestBody: GetProjectsRequest = {
+        userID,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/get-projects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("📨 Get projects response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Get projects failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        return {
+          status: "error",
+          message: errorData.message || "Failed to fetch projects",
+        };
+      }
+
+      const data: GetProjectsResponse = await response.json();
+      console.log("✅ Projects fetched successfully:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("💥 Get projects error:", error);
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        return {
+          status: "error",
+          message: `Network error: Cannot connect to API server at ${API_BASE_URL}. Please check if the server is running and accessible.`,
+        };
+      }
+
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to fetch projects - Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Fetch project details with PDF URLs
+   * @param projectID ID of the project
+   * @returns Promise with project PDFs
+   */
+  static async fetchProject(projectID: string): Promise<FetchProjectResponse> {
+    console.log("📁 Fetching project details...");
+    console.log("📝 Project ID:", projectID);
+
+    try {
+      const requestBody: FetchProjectRequest = {
+        projectID,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/fetch-project`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("📨 Fetch project response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Fetch project failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        return {
+          status: "error",
+          message: errorData.message || "Failed to fetch project details",
+        };
+      }
+
+      const data: FetchProjectResponse = await response.json();
+      console.log("✅ Project details fetched successfully:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("💥 Fetch project error:", error);
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        return {
+          status: "error",
+          message: `Network error: Cannot connect to API server at ${API_BASE_URL}. Please check if the server is running and accessible.`,
+        };
+      }
+
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to fetch project details - Unknown error",
+      };
     }
   }
 }

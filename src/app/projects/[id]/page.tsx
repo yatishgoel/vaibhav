@@ -18,9 +18,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, TrendingUp, Plus, ArrowLeft } from "lucide-react";
+import { FileText, TrendingUp, Plus, ArrowLeft, Eye } from "lucide-react";
 import { format } from "date-fns";
 import Layout from "@/components/layout";
+import PDFViewer from "@/components/abstract/PDFViewer";
 
 interface ProjectData {
   id?: string;
@@ -38,11 +39,14 @@ interface AnalysisData {
 }
 
 export default function ProjectDetails() {
-  const [uploadedPdf, setUploadedPdf] = useState<File | null>(null);
+  const [selectedPdf, setSelectedPdf] = useState<string | null>(null);
 
   const [project, setProject] = useState<ProjectData | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisData[]>([]);
+  const [projectPdfs, setProjectPdfs] = useState<{ url: string; filename: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPdfs, setIsLoadingPdfs] = useState(false);
+  const [error, setError] = useState("");
   const params = useParams();
   const projectId = params?.id as string;
 
@@ -53,20 +57,42 @@ export default function ProjectDetails() {
     }
     const fetchData = async () => {
       try {
+        setError("");
         const [projectData, analysesData] = await Promise.all([
           Project.get(projectId),
           LeaseAnalysis.filter({ project_id: projectId }, "-created_date"),
         ]);
         setProject(projectData);
         setAnalyses(analysesData);
+        
+        // Fetch project PDFs
+        setIsLoadingPdfs(true);
+        try {
+          console.log("📁 Fetching PDFs for project:", projectId);
+          const pdfs = await Project.getProjectPDFs(projectId);
+          console.log("📁 Received PDFs:", pdfs);
+          setProjectPdfs(pdfs);
+          console.log("📁 Set projectPdfs state to:", pdfs);
+        } catch (pdfError) {
+          console.error("Failed to fetch project PDFs:", pdfError);
+          setError("Failed to load project PDFs");
+        } finally {
+          setIsLoadingPdfs(false);
+        }
       } catch (error) {
         console.error("Failed to fetch project details:", error);
+        setError(error instanceof Error ? error.message : "Failed to fetch project details");
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
   }, [projectId]);
+
+  // Debug useEffect to track state changes
+  useEffect(() => {
+    console.log("📁 State update - isLoadingPdfs:", isLoadingPdfs, "projectPdfs.length:", projectPdfs.length, "projectPdfs:", projectPdfs);
+  }, [isLoadingPdfs, projectPdfs]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -99,35 +125,6 @@ export default function ProjectDetails() {
 
   return (
     <Layout currentPageName="ProjectDetails">
-      {/* PDF Upload and Preview Section */}
-      <div className="mb-8 p-6 bg-white rounded shadow border flex flex-col items-start gap-4">
-        <label className="font-medium">Upload Project PDF:</label>
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={e => {
-            const file = e.target.files?.[0];
-            if (file && file.type === "application/pdf") {
-              setUploadedPdf(file);
-            } else {
-              setUploadedPdf(null);
-              if (file) alert("Please select a PDF file.");
-            }
-          }}
-        />
-        {uploadedPdf && (
-          <div className="w-full flex flex-col items-center mt-4">
-            <div className="mb-2 font-medium">PDF Preview: {uploadedPdf.name}</div>
-            <iframe
-              src={URL.createObjectURL(uploadedPdf)}
-              title="PDF Preview"
-              width="100%"
-              height="500px"
-              className="border rounded shadow"
-            />
-          </div>
-        )}
-      </div>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="max-w-7xl mx-auto p-6 sm:p-8">
           <div className="mb-8">
@@ -167,6 +164,83 @@ export default function ProjectDetails() {
               </div>
             </div>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 text-red-600 text-sm bg-red-50 border border-red-200 p-3 rounded-lg flex items-center">
+              <div className="w-4 h-4 bg-red-100 rounded-full flex items-center justify-center mr-2">
+                <span className="text-red-600 text-xs">✕</span>
+              </div>
+              {error}
+            </div>
+          )}
+
+          {/* Project PDFs Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8"
+          >
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Project Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingPdfs ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
+                    <p className="text-gray-600">Loading project documents...</p>
+                  </div>
+                ) : projectPdfs.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {projectPdfs.map((pdf, index) => (
+                      <div
+                        key={index}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => setSelectedPdf(pdf.url)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm text-gray-900 truncate">
+                              {pdf.filename}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Click to view
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="ml-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPdf(pdf.url);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <h3 className="font-medium text-gray-700 mb-1">
+                      No documents yet
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Documents will appear here when uploaded to this project.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -255,6 +329,15 @@ export default function ProjectDetails() {
           </motion.div>
         </div>
       </div>
+
+      {/* PDF Viewer Modal */}
+      {selectedPdf && (
+        <PDFViewer
+          pdfUrl={selectedPdf}
+          filename={projectPdfs.find(pdf => pdf.url === selectedPdf)?.filename || "Document"}
+          onClose={() => setSelectedPdf(null)}
+        />
+      )}
     </Layout>
   );
 }

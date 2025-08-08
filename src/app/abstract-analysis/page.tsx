@@ -15,12 +15,25 @@ import {
   FileUploadZone,
   LeaseViewer,
   AbstractDisplay,
-  PDFViewer,
 } from "@/components/abstract";
+import AbstractPDFViewer from "@/components/abstract/AbstractPDFViewer";
 import { useState } from "react";
 import { ApiService } from "@/utils/api";
 import { ExtractedResult } from "@/entities/LeaseAnalysis";
 import { Card, CardContent } from "@/components/ui/card";
+import { Project } from "@/entities/Project";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
 
 interface ProcessingState {
   isUploading: boolean;
@@ -43,23 +56,80 @@ export default function AbstractAnalysis() {
     analysisProgress: "",
     error: null,
   });
+  
+  // Project selection state
+  const [projects, setProjects] = useState<{ id?: string; name: string }[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [showProjectDialog, setShowProjectDialog] = useState(false);
+  const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  const loadProjects = async () => {
+    try {
+      const projectsData = await Project.list();
+      setProjects(projectsData);
+      return projectsData;
+    } catch (error) {
+      console.error("Failed to load projects:", error);
+      return [];
+    }
+  };
+
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName) return;
+    
+    setIsCreatingProject(true);
+    try {
+      const newProject = await Project.create({
+        name: newProjectName,
+        description: newProjectDesc,
+      });
+      
+      setNewProjectName("");
+      setNewProjectDesc("");
+      setShowCreateProjectDialog(false);
+      
+      // Reload projects and select the new one
+      await loadProjects();
+      setSelectedProjectId(newProject.id || "");
+      
+      // Continue with file upload
+      if (pendingFile) {
+        setUploadedFile(pendingFile);
+        setPendingFile(null);
+        await performAnalysis(pendingFile, newProject.id);
+      }
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      alert("Failed to create project. Please try again.");
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
 
   const handleFileUpload = async (file: File) => {
     console.log("📁 File uploaded:", file);
-    setUploadedFile(file);
-    setShowResults(false);
-    setExtractedResults([]);
-    setProcessing({
-      isUploading: false,
-      isAnalyzing: false,
-      uploadProgress: "",
-      analysisProgress: "",
-      error: null,
-    });
-
-    // Automatically start analysis when file is uploaded
-    console.log("🚀 Auto-starting analysis after file upload...");
-    await performAnalysis(file);
+    
+    // Load projects first and get the data directly
+    const projectsData = await loadProjects();
+    console.log("📁 Loaded projects:", projectsData);
+    
+    if (projectsData.length === 0) {
+      console.log("📁 No projects found, showing create project dialog");
+      // No projects exist, show create project dialog
+      setPendingFile(file);
+      setShowCreateProjectDialog(true);
+      return;
+    }
+    
+    console.log("📁 Projects found, showing project selection dialog");
+    // Show project selection dialog
+    setPendingFile(file);
+    setShowProjectDialog(true);
   };
 
   const testApiConnection = async () => {
@@ -81,9 +151,10 @@ export default function AbstractAnalysis() {
     }
   };
 
-  const performAnalysis = async (fileToAnalyze: File) => {
+  const performAnalysis = async (fileToAnalyze: File, projectId?: string) => {
     console.log("🚀 performAnalysis called");
     console.log("📁 fileToAnalyze:", fileToAnalyze);
+    console.log("📁 projectId:", projectId);
 
     try {
       console.log("🔧 Starting analysis workflow...");
@@ -116,7 +187,8 @@ export default function AbstractAnalysis() {
               analysisProgress: message,
             }));
           }
-        }
+        },
+        projectId
       );
 
       if (results.status === "success") {
@@ -271,7 +343,7 @@ export default function AbstractAnalysis() {
           {uploadedFile && !showResults && !isProcessing && !processing.error && (
             <div className="mb-8">
               {uploadedFile.type === "application/pdf" ? (
-                <PDFViewer
+                <AbstractPDFViewer
                   file={uploadedFile}
                   extractedResults={extractedResults}
                 />
@@ -304,7 +376,7 @@ export default function AbstractAnalysis() {
                 </CardContent>
               </Card>
 
-              <PDFViewer
+              <AbstractPDFViewer
                 file={uploadedFile}
                 extractedResults={extractedResults}
               />
@@ -324,6 +396,109 @@ export default function AbstractAnalysis() {
               </div>
             </div>
           )}
+
+          {/* Project Selection Dialog */}
+          <Dialog open={showProjectDialog} onOpenChange={setShowProjectDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Select a Project</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Choose a project to associate with this analysis:
+                </p>
+                <div>
+                  <Label htmlFor="project-select">Project</Label>
+                  <select
+                    id="project-select"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full mt-2 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a project...</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowProjectDialog(false);
+                    setPendingFile(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!selectedProjectId) {
+                      alert("Please select a project");
+                      return;
+                    }
+                    setShowProjectDialog(false);
+                    if (pendingFile) {
+                      setUploadedFile(pendingFile);
+                      setPendingFile(null);
+                      await performAnalysis(pendingFile, selectedProjectId);
+                    }
+                  }}
+                  disabled={!selectedProjectId}
+                >
+                  Continue
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Create Project Dialog */}
+          <Dialog open={showCreateProjectDialog} onOpenChange={setShowCreateProjectDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create a New Project</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateProject} className="space-y-4">
+                <div>
+                  <Label htmlFor="newProjectName">Project Name</Label>
+                  <Input
+                    id="newProjectName"
+                    value={newProjectName}
+                    className="mt-2"
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="newProjectDesc">Description (Optional)</Label>
+                  <Textarea
+                    id="newProjectDesc"
+                    value={newProjectDesc}
+                    className="mt-2"
+                    onChange={(e) => setNewProjectDesc(e.target.value)}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => {
+                      setShowCreateProjectDialog(false);
+                      setPendingFile(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreatingProject}>
+                    {isCreatingProject ? "Creating..." : "Create Project"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </Layout>
