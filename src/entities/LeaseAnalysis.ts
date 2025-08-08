@@ -23,6 +23,7 @@ export interface PDFAnalysisResponse {
   status: "success" | "error";
   extracted_results: ExtractedResult[];
   message?: string;
+  jobExecutionId?: string;
 }
 
 export interface PDFAnalysisRequest {

@@ -1,6 +1,7 @@
 import {
   PDFAnalysisResponse,
   PDFAnalysisRequest,
+  ExtractedResult,
 } from "@/entities/LeaseAnalysis";
 
 // const API_BASE_URL =
@@ -13,11 +14,19 @@ const API_BASE_URL =
 interface FileUploadResponse {
   status: "success" | "error";
   message: string;
-  filename: string;
-  public_url: string;
-  original_filename: string;
-  file_size: number;
-  bucket: string;
+  jobExecutionID?: string;
+  filename?: string;
+  public_url?: string;
+  original_filename?: string;
+  file_size?: number;
+  bucket?: string;
+}
+
+interface JobStatusResponse {
+  jobID: string;
+  status: "IN_PROGRESS" | "SUCCESS" | "FAILURE";
+  message?: string;
+  extracted_results?: ExtractedResult[];
 }
 
 interface LoginRequest {
@@ -81,6 +90,36 @@ interface FetchProjectResponse {
   projectID?: string;
   pdf_urls?: string[];
   pdfs?: PDFItem[]; // Keep for backward compatibility
+}
+
+interface JobHistoryItem {
+  jobExecutionID: string;
+  fileName: string;
+  jobStatus: "SUCCESS" | "FAILED" | "IN_PROGRESS";
+  created_date?: string;
+}
+
+interface FetchJobsRequest {
+  account_id: string;
+}
+
+interface FetchJobsResponse {
+  status: "success" | "error";
+  message: string;
+  jobs?: JobHistoryItem[];
+}
+
+interface ExportAnalysisRequest {
+  jobExecutionId: string;
+  format: "XLSX" | "PDF";
+}
+
+interface ExportAnalysisResponse {
+  status: "success" | "error";
+  jobExecutionID?: string;
+  format?: string;
+  public_url?: string;
+  message?: string;
 }
 
 export class ApiService {
@@ -236,7 +275,7 @@ export class ApiService {
    * @param file The file to upload
    * @returns Promise with the uploaded file URL
    */
-  static async uploadFile(file: File, projectId?: string): Promise<string> {
+  static async uploadFile(file: File, projectId?: string): Promise<{ jobExecutionID: string; public_url?: string }> {
     console.log("🚀 Starting file upload...");
     console.log("📁 File details:", {
       name: file.name,
@@ -285,11 +324,15 @@ export class ApiService {
       console.log("✅ Upload response data:", data);
 
       if (data.status === "success") {
-        console.log(
-          "🔗 File uploaded successfully. Public URL:",
-          data.public_url
-        );
-        return data.public_url;
+        if (data.jobExecutionID) {
+          console.log("🔗 File uploaded successfully. Job ID:", data.jobExecutionID);
+          return { jobExecutionID: data.jobExecutionID, public_url: data.public_url };
+        } else if (data.public_url) {
+          console.log("🔗 File uploaded successfully. Public URL:", data.public_url);
+          return { jobExecutionID: "", public_url: data.public_url };
+        } else {
+          throw new Error("Upload successful but no job ID or public URL returned");
+        }
       } else {
         console.error("❌ Upload API returned error:", data.message);
         throw new Error(data.message || "Upload failed");
@@ -386,7 +429,107 @@ export class ApiService {
   }
 
   /**
-   * Complete workflow: Upload file and analyze it
+   * Check job status
+   * @param jobExecutionID The job execution ID to check
+   * @returns Promise with job status
+   */
+  static async checkJobStatus(jobExecutionID: string): Promise<JobStatusResponse> {
+    console.log("🔍 Checking job status for:", jobExecutionID);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({ jobExecutionID }),
+      });
+
+      console.log("📨 Status response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Status check failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+        });
+        throw new Error(
+          `Status check failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      const data: JobStatusResponse = await response.json();
+      console.log("✅ Status response data:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("💥 Status check error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Poll job status until completion
+   * @param jobExecutionID The job execution ID to poll
+   * @param onProgress Optional callback for progress updates
+   * @returns Promise with analysis results
+   */
+  static async pollJobStatus(
+    jobExecutionID: string,
+    onProgress?: (stage: "uploading" | "analyzing", message: string) => void
+  ): Promise<PDFAnalysisResponse> {
+    console.log("🔄 Starting job status polling for:", jobExecutionID);
+    
+    const maxAttempts = 60; // 5 minutes with 5-second intervals
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`📊 Polling attempt ${attempts}/${maxAttempts}`);
+      
+      try {
+        const statusResponse = await this.checkJobStatus(jobExecutionID);
+        
+        if (statusResponse.status === "SUCCESS") {
+          console.log("✅ Job completed successfully");
+          onProgress?.("analyzing", "Analysis completed successfully");
+          
+          // Extract results from the status response
+          const analysisResult: PDFAnalysisResponse = {
+            status: "success",
+            message: statusResponse.message || "Analysis completed successfully",
+            extracted_results: statusResponse.extracted_results || [],
+            jobExecutionId: jobExecutionID, // Include the job execution ID
+          };
+          
+          console.log("📊 Analysis results:", analysisResult.extracted_results);
+          return analysisResult;
+        } else if (statusResponse.status === "FAILURE") {
+          console.error("❌ Job failed:", statusResponse.message);
+          throw new Error(statusResponse.message || "Analysis failed");
+        } else if (statusResponse.status === "IN_PROGRESS") {
+          console.log("⏳ Job still in progress...");
+          onProgress?.("analyzing", "Processing document...");
+          
+          // Wait 5 seconds before next poll
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        } else {
+          console.error("❌ Unknown job status:", statusResponse.status);
+          throw new Error(`Unknown job status: ${statusResponse.status}`);
+        }
+      } catch (error) {
+        console.error("💥 Error during polling:", error);
+        throw error;
+      }
+    }
+    
+    throw new Error("Job polling timed out after 5 minutes");
+  }
+
+  /**
+   * Complete workflow: Upload file and analyze it with polling
    * @param file The file to upload and analyze
    * @param onProgress Optional callback for progress updates
    * @param projectId Optional project ID to associate with the analysis
@@ -404,15 +547,27 @@ export class ApiService {
       // Step 1: Upload file
       console.log("📤 Step 1: Uploading file...");
       onProgress?.("uploading", "Uploading file to server...");
-      const fileUrl = await this.uploadFile(file, projectId);
+      const uploadResult = await this.uploadFile(file, projectId);
 
-      // Step 2: Analyze PDF
-      console.log("🔍 Step 2: Analyzing PDF...");
-      onProgress?.("analyzing", "Analyzing PDF content and extracting data...");
-      const analysisResult = await this.analyzePDF(fileUrl);
-
-      console.log("🎉 Workflow completed successfully!");
-      return analysisResult;
+      if (uploadResult.jobExecutionID) {
+        // Step 2: Poll for job completion
+        console.log("🔍 Step 2: Polling for job completion...");
+        onProgress?.("analyzing", "Processing document...");
+        const analysisResult = await this.pollJobStatus(uploadResult.jobExecutionID, onProgress);
+        
+        console.log("🎉 Workflow completed successfully!");
+        return analysisResult;
+      } else if (uploadResult.public_url) {
+        // Fallback to old flow if no job ID
+        console.log("🔍 Step 2: Analyzing PDF (fallback)...");
+        onProgress?.("analyzing", "Analyzing PDF content and extracting data...");
+        const analysisResult = await this.analyzePDF(uploadResult.public_url);
+        
+        console.log("🎉 Workflow completed successfully!");
+        return analysisResult;
+      } else {
+        throw new Error("Upload completed but no job ID or public URL returned");
+      }
     } catch (error) {
       console.error("💥 Upload and analyze workflow error:", error);
       throw error;
@@ -595,6 +750,126 @@ export class ApiService {
       return {
         status: "error",
         message: error instanceof Error ? error.message : "Failed to fetch project details - Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Fetch job history for a user
+   * @param account_id ID of the user account
+   * @returns Promise with job history
+   */
+  static async fetchJobs(account_id: string): Promise<FetchJobsResponse> {
+    console.log("📊 Fetching job history for account:", account_id);
+
+    try {
+      const requestBody: FetchJobsRequest = {
+        account_id,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/fetch-jobs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("📨 Fetch jobs response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Fetch jobs failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        return {
+          status: "error",
+          message: errorData.message || "Failed to fetch job history",
+        };
+      }
+
+      const data: FetchJobsResponse = await response.json();
+      console.log("✅ Job history fetched successfully:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("💥 Fetch jobs error:", error);
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        return {
+          status: "error",
+          message: `Network error: Cannot connect to API server at ${API_BASE_URL}. Please check if the server is running and accessible.`,
+        };
+      }
+
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to fetch job history - Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Export analysis results
+   * @param jobExecutionId The job execution ID
+   * @param format The export format (XLSX or PDF)
+   * @returns Promise with export response
+   */
+  static async exportAnalysis(jobExecutionId: string, format: "XLSX" | "PDF"): Promise<ExportAnalysisResponse> {
+    console.log("📤 Exporting analysis...");
+    console.log("📝 Job Execution ID:", jobExecutionId);
+    console.log("📄 Format:", format);
+
+    try {
+      const requestBody: ExportAnalysisRequest = {
+        jobExecutionId,
+        format,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/export-analysis`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log("📨 Export response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("❌ Export failed:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        });
+        return {
+          status: "error",
+          message: errorData.message || "Failed to export analysis",
+        };
+      }
+
+      const data: ExportAnalysisResponse = await response.json();
+      console.log("✅ Export successful:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("💥 Export error:", error);
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        return {
+          status: "error",
+          message: `Network error: Cannot connect to API server at ${API_BASE_URL}. Please check if the server is running and accessible.`,
+        };
+      }
+
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Failed to export analysis - Unknown error",
       };
     }
   }

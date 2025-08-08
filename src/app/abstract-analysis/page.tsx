@@ -66,6 +66,14 @@ export default function AbstractAnalysis() {
   const [newProjectDesc, setNewProjectDesc] = useState("");
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  
+  // Export functionality state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"XLSX" | "PDF">("XLSX");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState<{ url: string; format: string } | null>(null);
+  const [currentJobExecutionId, setCurrentJobExecutionId] = useState<string>("");
 
   const loadProjects = async () => {
     try {
@@ -194,6 +202,10 @@ export default function AbstractAnalysis() {
       if (results.status === "success") {
         setExtractedResults(results.extracted_results);
         setShowResults(true);
+        // Store the job execution ID for export functionality
+        // Note: This assumes the jobExecutionId is available in the results
+        // You may need to modify the API response to include this
+        setCurrentJobExecutionId(results.jobExecutionId || "");
         setProcessing({
           isUploading: false,
           isAnalyzing: false,
@@ -227,6 +239,43 @@ export default function AbstractAnalysis() {
     }
 
     await performAnalysis(uploadedFile);
+  };
+
+  const handleExportAnalysis = async () => {
+    if (!currentJobExecutionId) {
+      setExportError("No analysis available for export");
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      const response = await ApiService.exportAnalysis(currentJobExecutionId, exportFormat);
+      
+      if (response.status === "success" && response.public_url) {
+        // Create a temporary link and trigger download
+        const link = document.createElement("a");
+        link.href = response.public_url;
+        link.download = `analysis_${currentJobExecutionId}.${exportFormat.toLowerCase()}`;
+        link.target = "_blank"; // Open in new tab as fallback
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Set success state for manual download option
+        setExportSuccess({ url: response.public_url, format: exportFormat });
+        setExportError(null);
+      } else {
+        setExportError(response.message || "Export failed");
+        setExportSuccess(null);
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      setExportError(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const isProcessing = processing.isUploading || processing.isAnalyzing;
@@ -317,7 +366,26 @@ export default function AbstractAnalysis() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-4">
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    onClick={async () => {
+                      if (uploadedFile) {
+                        setProcessing({
+                          isUploading: false,
+                          isAnalyzing: false,
+                          uploadProgress: "",
+                          analysisProgress: "",
+                          error: null,
+                        });
+                        // Retry with the same file and project
+                        await performAnalysis(uploadedFile, selectedProjectId || undefined);
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Retry Analysis
+                  </Button>
                   <Button
                     onClick={() => {
                       setUploadedFile(null);
@@ -332,7 +400,7 @@ export default function AbstractAnalysis() {
                     variant="outline"
                     size="sm"
                   >
-                    Try Again
+                    Upload New File
                   </Button>
                 </div>
               </CardContent>
@@ -363,15 +431,25 @@ export default function AbstractAnalysis() {
             <div className="mb-8">
               <Card className="mb-4">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-3 text-green-700">
-                    <CheckCircle className="w-5 h-5" />
-                    <div>
-                      <h3 className="font-medium">Analysis Complete</h3>
-                      <p className="text-sm text-green-600">
-                        Found {extractedResults.length} key data points in your
-                        lease document
-                      </p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-green-700">
+                      <CheckCircle className="w-5 h-5" />
+                      <div>
+                        <h3 className="font-medium">Analysis Complete</h3>
+                        <p className="text-sm text-green-600">
+                          Found {extractedResults.length} key data points in your
+                          lease document
+                        </p>
+                      </div>
                     </div>
+                    <Button
+                      onClick={() => setShowExportDialog(true)}
+                      className="flex items-center gap-2"
+                      disabled={!currentJobExecutionId}
+                    >
+                      <Download className="w-4 h-4" />
+                      Export Analysis
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -497,6 +575,106 @@ export default function AbstractAnalysis() {
                   </Button>
                 </DialogFooter>
               </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Export Analysis Dialog */}
+          <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Export Analysis</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {!exportSuccess ? (
+                  <>
+                    <p className="text-sm text-gray-600">
+                      Choose the format for your analysis export:
+                    </p>
+                    <div>
+                      <Label htmlFor="export-format">Export Format</Label>
+                      <select
+                        id="export-format"
+                        value={exportFormat}
+                        onChange={(e) => setExportFormat(e.target.value as "XLSX" | "PDF")}
+                        className="w-full mt-2 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="XLSX">XLSX (Excel)</option>
+                        <option value="PDF">PDF</option>
+                      </select>
+                    </div>
+                    {exportError && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-sm text-red-700">{exportError}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center space-y-4">
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <CheckCircle className="w-5 h-5" />
+                        <p className="text-sm font-medium">Export Successful!</p>
+                      </div>
+                      <p className="text-sm text-green-600 mt-1">
+                        Your {exportSuccess.format} file has been generated and should start downloading automatically.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-700 mb-2">
+                        If the download didn&apos;t start automatically, you can download it manually:
+                      </p>
+                      <Button
+                        onClick={() => {
+                          const link = document.createElement("a");
+                          link.href = exportSuccess.url;
+                          link.download = `analysis_${currentJobExecutionId}.${exportSuccess.format.toLowerCase()}`;
+                          link.target = "_blank";
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="w-full flex items-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download {exportSuccess.format} File
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowExportDialog(false);
+                    setExportError(null);
+                    setExportSuccess(null);
+                    setExportFormat("XLSX");
+                  }}
+                  disabled={isExporting}
+                >
+                  {exportSuccess ? "Close" : "Cancel"}
+                </Button>
+                {!exportSuccess && (
+                  <Button
+                    onClick={handleExportAnalysis}
+                    disabled={isExporting || !currentJobExecutionId}
+                    className="flex items-center gap-2"
+                  >
+                    {isExporting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Export
+                      </>
+                    )}
+                  </Button>
+                )}
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
